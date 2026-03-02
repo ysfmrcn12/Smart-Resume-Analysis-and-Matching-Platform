@@ -1,0 +1,25 @@
+"""Tests for relevance-aware scoring (skill overlap penalization)."""
+from app.nlp.matching_engine import MatchingEngine
+
+
+def test_accountant_vs_java_low_score():
+    engine = MatchingEngine()
+    job = "Java developer, backend services, Spring, Java 11"
+    accountant_resume = (
+        "Experienced accountant with expertise in financial reporting, budgeting, and "
+        "tax compliance. Proficient in Excel, QuickBooks, payroll reconciliation, and "
+        "audit preparation. Managed accounts receivable and payable for mid-size firms."
+    )
+    score = engine.compute_similarity(job, accountant_resume)
+    assert score < 0.2
+
+
+def test_java_resume_high_score():
+    engine = MatchingEngine()
+    job = "Java developer, backend services, Spring, Java 11"
+    java_resume = (
+        "Senior Java developer with 6 years experience building backend services using "
+        "Spring Framework, REST APIs, and Java 11. Familiar with Hibernate, Maven, and Docker."
+    )
+    score = engine.compute_similarity(job, java_resume)
+    assert score > 0.4
