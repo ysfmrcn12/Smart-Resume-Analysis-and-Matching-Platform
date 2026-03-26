@@ -32,4 +32,4 @@ backend/data/
 # Logs
 *.log
 
-data
+data/
