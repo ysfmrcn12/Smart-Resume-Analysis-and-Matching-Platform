@@ -4,8 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import CreateJobForm from "./CreateJobForm";
 import type { JobPosting } from "@/lib/api/types";
-import type { JobCreateInput } from "@/lib/api/types";
-import { createJob, deleteJob, getJobs } from "@/lib/api/jobs";
+import { deleteJob, getJobs } from "@/lib/api/jobs";
 
 function formatDate(value: string | null) {
   if (!value) return "";
@@ -18,7 +17,6 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [fillingMock, setFillingMock] = useState(false);
 
   async function refresh() {
     setError(null);
@@ -39,56 +37,6 @@ export default function JobsPage() {
 
   const rowCountLabel = useMemo(() => `${jobs.length} job${jobs.length === 1 ? "" : "s"}`, [jobs.length]);
 
-  const mockJobs: JobCreateInput[] = useMemo(
-    () => [
-      {
-        title: "Frontend Engineer (React)",
-        description:
-          "Build accessible UI components, improve performance, and collaborate with design and backend teams.",
-        requirements: "React, TypeScript, accessibility, performance tuning",
-        company: "Acme Labs",
-        location: "Remote",
-      },
-      {
-        title: "Backend Engineer (Python/Flask)",
-        description:
-          "Design REST APIs, process uploaded documents, and maintain reliable data pipelines.",
-        requirements: "Python, Flask, SQLAlchemy, PostgreSQL, testing",
-        company: "Smart Resume Co.",
-        location: "New York, NY",
-      },
-      {
-        title: "Data/ML Engineer",
-        description:
-          "Develop ranking and matching models, iterate on features, and evaluate candidate-job compatibility.",
-        requirements: "NLP, embeddings, model evaluation, production ML basics",
-        company: "Talent Signals",
-        location: "Hybrid",
-      },
-    ],
-    []
-  );
-
-  async function fillMockData() {
-    if (fillingMock) return;
-    const ok = window.confirm("Create mock job postings now? This may create duplicates.");
-    if (!ok) return;
-
-    setError(null);
-    setFillingMock(true);
-    try {
-      // Create sequentially for simpler debugging and to reduce backend burst load.
-      for (const job of mockJobs) {
-        await createJob(job);
-      }
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create mock jobs.");
-    } finally {
-      setFillingMock(false);
-    }
-  }
-
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -96,19 +44,7 @@ export default function JobsPage() {
         <p className="mt-1 text-sm text-zinc-600">{rowCountLabel}</p>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <CreateJobForm onCreated={refresh} />
-        <div className="sm:pt-7">
-          <button
-            type="button"
-            onClick={() => void fillMockData()}
-            disabled={fillingMock}
-            className="inline-flex w-full items-center justify-center rounded-lg bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-          >
-            {fillingMock ? "Filling..." : "Fill mock data"}
-          </button>
-        </div>
-      </div>
+      <CreateJobForm onCreated={refresh} />
 
       <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         {error ? <div className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div> : null}

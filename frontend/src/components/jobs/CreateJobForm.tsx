@@ -19,6 +19,17 @@ export default function CreateJobForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  function fillMockData() {
+    setError(null);
+    setTitle("Frontend Engineer (React)");
+    setDescription(
+      "Build accessible UI components, improve performance, and collaborate with design and backend teams.",
+    );
+    setRequirements("React, TypeScript, accessibility, performance tuning");
+    setCompany("Acme Labs");
+    setLocation("Remote");
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -113,13 +124,24 @@ export default function CreateJobForm({
           </label>
         </div>
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="mt-1 inline-flex h-10 items-center justify-center rounded-lg bg-zinc-900 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {submitting ? "Creating..." : "Create Job"}
-        </button>
+        <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={fillMockData}
+            disabled={submitting}
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-zinc-100 px-4 text-sm font-semibold text-zinc-900 hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Fill mock data
+          </button>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-zinc-900 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-1"
+          >
+            {submitting ? "Creating..." : "Create Job"}
+          </button>
+        </div>
       </div>
     </form>
   );

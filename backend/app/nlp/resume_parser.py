@@ -156,16 +156,16 @@ class ResumeParser:
             else:
                 images = convert_from_path(file_path)
         except Exception as e:
-            # provide actionable instructions when OCR conversion fails
-            raise ValueError(
-                f"Could not convert PDF pages to images for OCR: {str(e)}\n"
-                "Ensure Poppler is installed and pdftoppm is available.\n"
-                "On Windows you can install via Chocolatey: `choco install poppler -y`, or download binaries from https://poppler.freedesktop.org/\n"
-                "Make sure the `bin` folder is on your PATH or set the POPPLER_PATH environment variable to the folder containing `pdftoppm`."
+            # If OCR tooling (Poppler) isn't available, don't fail the whole upload.
+            # We return empty text and let the rest of the pipeline score/extract safely.
+            print(
+                "OCR skipped: could not convert PDF pages to images for OCR:",
+                str(e),
             )
+            return ''
 
         if not images:
-            raise ValueError("PDF has no pages or conversion resulted in no images.")
+            return ''
 
         ocr_text_parts = []
         ocr_errors = []
@@ -186,9 +186,11 @@ class ResumeParser:
         if ocr_text.strip():
             return ocr_text
         # final fallback
-        raise ValueError(
-            "Could not extract text from PDF. Ensure the PDF has selectable text or install Poppler and Tesseract and set POPPLER_PATH/TESSERACT_CMD if needed."
+        print(
+            "OCR skipped: no text extracted from PDF images. " 
+            "Returning empty resume text."
         )
+        return ''
     def _read_docx(self, file_path: str) -> str:
         """Extract text from DOCX file."""
         try:
@@ -268,8 +270,6 @@ class ResumeParser:
             Dict with keys: text, contact_info, filename
         """
         text = self.extract_text(file_path)
-        if not text or not text.strip():
-            raise ValueError("Resume appears to be empty or could not extract text")
 
         contact = self.extract_contact_info(text)
         filename = os.path.basename(file_path)

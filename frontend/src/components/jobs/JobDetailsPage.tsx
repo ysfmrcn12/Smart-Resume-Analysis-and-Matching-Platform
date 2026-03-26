@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import type { Application, JobPosting } from "@/lib/api/types";
 import { deleteJob, getJob } from "@/lib/api/jobs";
 import { listApplications, rankApplications } from "@/lib/api/applications";
-import JobEditForm from "./JobEditForm";
 import UploadResumeForm from "./UploadResumeForm";
 
 function formatDate(value: string | null) {
@@ -34,6 +33,7 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
   const [loadingApps, setLoadingApps] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rankedMode, setRankedMode] = useState(false);
+  const [applyOpen, setApplyOpen] = useState(false);
 
   const refreshJobAndApplications = useCallback(async () => {
     setError(null);
@@ -128,6 +128,13 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
         <div className="flex flex-col items-end gap-2">
           <button
             type="button"
+            onClick={() => setApplyOpen(true)}
+            className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+          >
+            apply for this job
+          </button>
+          <button
+            type="button"
             onClick={async () => {
               const ok = window.confirm(`Delete job "${job.title}"? This cannot be undone.`);
               if (!ok) return;
@@ -141,14 +148,17 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {applyOpen ? (
         <div className="flex flex-col gap-4">
-          <JobEditForm job={job} onUpdated={refreshJobAndApplications} />
+          <UploadResumeForm
+            jobId={jobId}
+            onUploaded={async () => {
+              await refreshApplicationsOnly();
+              setApplyOpen(false);
+            }}
+          />
         </div>
-        <div className="flex flex-col gap-4">
-          <UploadResumeForm jobId={jobId} onUploaded={refreshApplicationsOnly} />
-        </div>
-      </div>
+      ) : null}
 
       <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -190,9 +200,7 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
         {loadingApps ? (
           <div className="py-6 text-sm text-zinc-600">Loading applications...</div>
         ) : applications.length === 0 ? (
-          <div className="py-6 text-sm text-zinc-600">
-            No applications yet. Upload a resume above.
-          </div>
+          <div className="py-6 text-sm text-zinc-600">No applications yet.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full border-separate border-spacing-0">
