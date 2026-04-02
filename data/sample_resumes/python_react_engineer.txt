@@ -1,0 +1,11 @@
+John Yusuf
+john.yusuf@example.com
+
+SKILLS
+Python, React, TypeScript, JavaScript, Flask, REST APIs, PostgreSQL
+
+EXPERIENCE
+Software Engineer - ExampleCorp (2019 - 2024)
+Built modern web applications using React and Python.
+Developed REST APIs with Flask and worked with PostgreSQL.
+

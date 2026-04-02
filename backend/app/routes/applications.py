@@ -26,8 +26,33 @@ def get_upload_folder():
 def list_applications(job_id):
     """List all applications for a job, sorted by compatibility score."""
     job = JobPosting.query.get_or_404(job_id)
-    applications = Application.query.filter_by(job_posting_id=job_id)\
-        .order_by(Application.compatibility_score.desc()).all()
+    # Load from DB first (so the endpoint can succeed even if NLP/scoring fails).
+    applications = Application.query.filter_by(job_posting_id=job_id).all()
+
+    # Recompute scores using the current MatchingEngine logic so previously
+    # uploaded resumes immediately reflect scoring improvements.
+    # This recomputation is best-effort; if anything goes wrong (e.g., spaCy model
+    # load issues), we fall back to stored `compatibility_score` to avoid
+    # breaking the UI with a 500.
+    try:
+        candidates = [{'id': a.id, 'resume_text': a.resume_text} for a in applications]
+        ranked = matching_engine.rank_candidates(
+            f"{job.title} {job.description} {job.requirements or ''}",
+            candidates,
+        )
+        score_map = {int(r['id']): r.get('compatibility_score', 0.0) for r in ranked}
+
+        for a in applications:
+            a.compatibility_score = float(
+                score_map.get(a.id, a.compatibility_score or 0.0)
+            )
+
+        # Persist the recomputed values so subsequent requests don't need recompute.
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    applications = sorted(applications, key=lambda a: a.compatibility_score, reverse=True)
     return jsonify([a.to_dict() for a in applications])
 
 
@@ -63,6 +88,17 @@ def upload_resume(job_id):
         parsed = resume_parser.parse(filepath)
         resume_text = parsed['text']
         contact = parsed['contact_info']
+
+        # If extraction/OCR still yields no meaningful text, avoid silently
+        # creating a "0.00%" application.
+        if not resume_text or not resume_text.strip():
+            return jsonify({
+                'error': (
+                    'Could not extract any text from the uploaded PDF. '
+                    'If it is image-based, install Poppler + Tesseract (OCR) '
+                    'or ensure the PDF contains selectable text.'
+                )
+            }), 422
 
         # NER extraction
         extracted = ner_extractor.extract_all(resume_text)
@@ -135,7 +171,8 @@ def rank_applicants(job_id):
         app = app_map.get(r['id'])
         if app:
             d = app.to_dict()
-            d['compatibility_score'] = r['compatibility_score']
+            # API contract: show percent (0..100)
+            d['compatibility_score'] = round(float(r['compatibility_score']) * 100, 2)
             result.append(d)
 
     return jsonify(result)

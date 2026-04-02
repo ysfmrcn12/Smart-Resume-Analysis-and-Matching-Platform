@@ -106,10 +106,10 @@ class NERExtractor:
             # Add noun chunks and significant terms
             for chunk in doc.noun_chunks:
                 if len(chunk.text) > 2 and len(chunk.text) < 50:
-                    skills.add(chunk.text.strip())
+                    skills.add(chunk.text.strip().lower())
             for token in doc:
                 if token.pos_ in ('NOUN', 'PROPN') and len(token.text) > 2:
-                    skills.add(token.text.strip())
+                    skills.add(token.text.strip().lower())
 
         # Common tech skills pattern
         tech_patterns = [
@@ -126,9 +126,17 @@ class NERExtractor:
 
         # Add ORG entities (companies often indicate domain skills)
         entities = self.extract_entities(text)
-        skills.update(entities['organizations'][:5])  # Limit
+        # Company names can help domain-match, but normalize to lowercase for intersections.
+        skills.update(s.strip().lower() for s in entities['organizations'][:5])  # Limit
 
-        return sorted(list(skills))[:50]  # Limit to 50 skills
+        # Normalize whitespace and casing (keeps matching consistent across job/resume).
+        normalized = set()
+        for s in skills:
+            s2 = re.sub(r"\s+", " ", str(s)).strip().lower()
+            if s2:
+                normalized.add(s2)
+
+        return sorted(list(normalized))[:50]  # Limit to 50 skills
 
     def extract_experience(self, text: str) -> List[Dict]:
         """

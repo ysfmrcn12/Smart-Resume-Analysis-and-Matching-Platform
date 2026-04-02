@@ -1,4 +1,5 @@
 """Matching engine using TF-IDF and cosine similarity for job-resume matching."""
+import math
 from typing import Dict, List, Tuple
 
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -55,11 +56,20 @@ class MatchingEngine:
             return 0.0
 
         try:
-            # Fit vectorizer only on the job text to keep IDF stable across resume sets.
-            self.vectorizer.fit([job_processed])
+            # Fit on job+resume so the vocabulary/IDF reflects both texts.
+            # This generally improves stability and prevents overly penalizing resumes
+            # that use different wording than the job requirements.
+            self.vectorizer.fit([job_processed, resume_processed])
             job_vec = self.vectorizer.transform([job_processed])
             resume_vec = self.vectorizer.transform([resume_processed])
-            similarity = cosine_similarity(job_vec, resume_vec)[0][0]
+            raw_similarity = float(cosine_similarity(job_vec, resume_vec)[0][0])
+            # Calibrate cosine similarity so "relevant" resumes are more visible.
+            # TF-IDF cosine values are often small (~0.01-0.1), so we apply a
+            # saturating transform: sim' = 1 - exp(-k * sim).
+            # k controls how quickly scores rise.
+            raw_similarity = max(0.0, min(1.0, raw_similarity))
+            k = 30.0
+            similarity = 1.0 - math.exp(-k * raw_similarity)
             # Compute skill overlap to penalize unrelated resumes
             try:
                 job_skills = set(self.extractor.extract_skills(job_text))
@@ -74,7 +84,13 @@ class MatchingEngine:
 
             # If no skill overlap, apply a penalty; otherwise boost by overlap
             if skill_overlap_ratio == 0:
-                final = float(similarity) * 0.25
+                # If we couldn't extract any job skills, avoid a harsh penalty.
+                # This prevents scores collapsing to ~0 when NER/pattern extraction
+                # doesn't produce overlapping skill tokens.
+                if len(job_skills) == 0:
+                    final = float(similarity)
+                else:
+                    final = float(similarity) * 0.25
             else:
                 final = float(similarity) * (0.6 + 0.4 * skill_overlap_ratio)
 
@@ -109,8 +125,8 @@ class MatchingEngine:
             all_texts.append(self._preprocess(rtext))
 
         try:
-            # Fit vectorizer only on the job text to prevent resume-to-resume IDF shifts.
-            self.vectorizer.fit([job_processed])
+            # Fit on job + all resumes so each resume is comparable in the same vector space.
+            self.vectorizer.fit(all_texts)
             job_vec = self.vectorizer.transform([job_processed])
             # Pre-extract job skills once
             try:
@@ -121,7 +137,10 @@ class MatchingEngine:
             scores = []
             for i, rid in enumerate(ids):
                 resume_vec = self.vectorizer.transform([all_texts[i + 1]])
-                sim = cosine_similarity(job_vec, resume_vec)[0][0]
+                raw_sim = float(cosine_similarity(job_vec, resume_vec)[0][0])
+                raw_sim = max(0.0, min(1.0, raw_sim))
+                k = 30.0
+                sim = 1.0 - math.exp(-k * raw_sim)
                 try:
                     resume_skills = set(self.extractor.extract_skills(resumes[i][1]))
                 except Exception:
@@ -132,7 +151,10 @@ class MatchingEngine:
                 skill_overlap_ratio = overlap / job_skill_count
 
                 if skill_overlap_ratio == 0:
-                    final = float(sim) * 0.25
+                    if len(job_skills) == 0:
+                        final = float(sim)
+                    else:
+                        final = float(sim) * 0.25
                 else:
                     final = float(sim) * (0.6 + 0.4 * skill_overlap_ratio)
 

@@ -53,7 +53,9 @@ class Application(db.Model):
             'candidate_name': self.candidate_name,
             'candidate_email': self.candidate_email,
             'resume_filename': self.resume_filename,
-            'compatibility_score': round(self.compatibility_score, 2) if self.compatibility_score else 0,
+            # Store similarity internally as a 0..1 score.
+            # Expose it to the frontend as a percent (0..100).
+            'compatibility_score': round(self.compatibility_score * 100, 2) if self.compatibility_score else 0,
             'extracted_skills': self.extracted_skills or [],
             'extracted_experience': self.extracted_experience or [],
             'created_at': self.created_at.isoformat() if self.created_at else None,

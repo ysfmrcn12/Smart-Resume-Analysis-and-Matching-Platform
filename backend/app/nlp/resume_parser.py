@@ -63,6 +63,8 @@ class ResumeParser:
 
     def _read_pdf(self, file_path: str) -> str:
         """Extract text from PDF file."""
+        # If extracted text is "too small", treat as no-text and try OCR.
+        MIN_EXTRACTED_TEXT_CHARS = 50
         try:
             import pdfplumber
             text_parts = []
@@ -72,7 +74,7 @@ class ResumeParser:
                     if page_text:
                         text_parts.append(page_text)
             text = '\n'.join(text_parts) if text_parts else ''
-            if text.strip():
+            if len(text.strip()) >= MIN_EXTRACTED_TEXT_CHARS:
                 return text
             # If pdfplumber extracted nothing, try OCR fallback below
         except Exception as e:
@@ -86,7 +88,7 @@ class ResumeParser:
                     if page_text:
                         text_parts.append(page_text)
                 text = '\n'.join(text_parts) if text_parts else ''
-                if text.strip():
+                if len(text.strip()) >= MIN_EXTRACTED_TEXT_CHARS:
                     return text
                 # If PyPDF2 also extracted nothing, fall through to optional OCR
             except Exception:
@@ -117,10 +119,7 @@ class ResumeParser:
             else:
                 # common Windows install locations
                 common_tess = [
-                    r"C:\Program Files\Tesseract-OCR\tesseract.exe\tesseract.exe",  # nested dir structure
                     r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-                    r"C:\Program Files\Tesseract-OCR\tesseract",
-                    r"C:\Program Files\Tesseract-OCR\tessdata\..\tesseract.exe",
                     r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
                 ]
                 for p in common_tess:
@@ -138,6 +137,8 @@ class ResumeParser:
                 common_poppler = [
                     r"C:\Program Files\poppler-0.68.0\bin",
                     r"C:\Program Files\poppler-21.03.0\Library\bin",
+                    r"C:\tools\poppler\poppler-23.08.0\Library\bin",
+                    r"C:\tools\poppler\poppler-23.08.0\bin",
                     r"C:\tools\poppler\bin",
                 ]
                 for p in common_poppler:

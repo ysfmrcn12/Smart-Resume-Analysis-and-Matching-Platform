@@ -18,8 +18,9 @@ function formatDate(value: string | null) {
 function scoreLabel(score: number) {
   const s = Number(score);
   if (Number.isNaN(s)) return { text: "—", className: "bg-zinc-100 text-zinc-700" };
-  if (s >= 0.8) return { text: s.toFixed(2), className: "bg-green-50 text-green-800" };
-  if (s >= 0.5) return { text: s.toFixed(2), className: "bg-yellow-50 text-yellow-900" };
+  // Backend returns percent values (0..100).
+  if (s >= 80) return { text: s.toFixed(2), className: "bg-green-50 text-green-800" };
+  if (s >= 50) return { text: s.toFixed(2), className: "bg-yellow-50 text-yellow-900" };
   return { text: s.toFixed(2), className: "bg-red-50 text-red-800" };
 }
 

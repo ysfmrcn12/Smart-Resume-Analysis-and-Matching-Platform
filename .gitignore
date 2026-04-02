@@ -32,4 +32,6 @@ backend/data/
 # Logs
 *.log
 
-data/
+data/*
+!data/sample_resumes/
+!data/sample_resumes/**

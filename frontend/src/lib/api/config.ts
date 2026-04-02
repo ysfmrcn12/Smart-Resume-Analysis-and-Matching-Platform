@@ -6,5 +6,7 @@ function envStringOrUndefined(key: string): string | undefined {
 }
 
 export const API_BASE_URL =
-  envStringOrUndefined("NEXT_PUBLIC_API_BASE_URL") ?? "http://localhost:5000";
+  // Default to same-origin relative URLs; `next.config.ts` rewrites proxy `/api/*`
+  // to the Flask backend, avoiding cross-origin/CORS issues.
+  envStringOrUndefined("NEXT_PUBLIC_API_BASE_URL") ?? "";
 

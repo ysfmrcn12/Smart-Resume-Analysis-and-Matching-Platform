@@ -6,6 +6,20 @@ from app.models import JobPosting
 
 jobs_bp = Blueprint('jobs', __name__)
 
+TITLE_MAX_LENGTH = 200
+COMPANY_MAX_LENGTH = 200
+LOCATION_MAX_LENGTH = 200
+
+
+def _truncate_str(value, max_len: int) -> str:
+    """Truncate incoming strings to DB column limits to avoid 500s."""
+    if value is None:
+        return ""
+    s = str(value).strip()
+    if len(s) <= max_len:
+        return s
+    return s[:max_len]
+
 
 @jobs_bp.route('', methods=['GET'])
 def list_jobs():
@@ -34,11 +48,11 @@ def create_job():
             return jsonify({'error': f'Missing required field: {field}'}), 400
 
     job = JobPosting(
-        title=data['title'],
+        title=_truncate_str(data['title'], TITLE_MAX_LENGTH),
         description=data['description'],
-        requirements=data.get('requirements', ''),
-        company=data.get('company', ''),
-        location=data.get('location', ''),
+        requirements=data.get('requirements', '') or '',
+        company=_truncate_str(data.get('company', ''), COMPANY_MAX_LENGTH),
+        location=_truncate_str(data.get('location', ''), LOCATION_MAX_LENGTH),
     )
     db.session.add(job)
     db.session.commit()
@@ -54,15 +68,15 @@ def update_job(job_id):
         return jsonify({'error': 'No data provided'}), 400
 
     if 'title' in data:
-        job.title = data['title']
+        job.title = _truncate_str(data['title'], TITLE_MAX_LENGTH)
     if 'description' in data:
         job.description = data['description']
     if 'requirements' in data:
-        job.requirements = data['requirements']
+        job.requirements = data['requirements'] or ''
     if 'company' in data:
-        job.company = data['company']
+        job.company = _truncate_str(data['company'], COMPANY_MAX_LENGTH)
     if 'location' in data:
-        job.location = data['location']
+        job.location = _truncate_str(data['location'], LOCATION_MAX_LENGTH)
 
     db.session.commit()
     return jsonify(job.to_dict())
