@@ -5,7 +5,7 @@ export default function NavBar() {
     <header className="border-b border-zinc-200 bg-white/80 backdrop-blur">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
         <Link href="/jobs" className="text-lg font-semibold text-zinc-900">
-          Smart Resume
+          SMARP
         </Link>
         <nav className="flex items-center gap-4 text-sm text-zinc-700">
           <Link href="/jobs" className="hover:text-zinc-900">

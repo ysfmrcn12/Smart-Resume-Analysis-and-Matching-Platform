@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig = {
   reactCompiler: true,
+  // Allow HMR and dev server access from your local network IP
+  allowedDevOrigins: ["192.168.0.22"],
   async rewrites() {
     // Proxy frontend `/api/*` calls to the Flask backend.
     return [

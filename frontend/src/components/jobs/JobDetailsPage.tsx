@@ -7,6 +7,7 @@ import type { Application, JobPosting } from "@/lib/api/types";
 import { deleteJob, getJob } from "@/lib/api/jobs";
 import { listApplications, rankApplications } from "@/lib/api/applications";
 import UploadResumeForm from "./UploadResumeForm";
+import ResumeHighlightModal from "./ResumeHighlightModal";
 
 function formatDate(value: string | null) {
   if (!value) return "";
@@ -35,6 +36,8 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
   const [error, setError] = useState<string | null>(null);
   const [rankedMode, setRankedMode] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
+  const [highlightModalOpen, setHighlightModalOpen] = useState(false);
+  const [selectedAppId, setSelectedAppId] = useState<number | null>(null);
 
   const refreshJobAndApplications = useCallback(async () => {
     setError(null);
@@ -225,17 +228,44 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
                         </div>
                       </td>
                       <td className="border-b border-zinc-100 py-3 pr-3 text-sm text-zinc-700">
-                        {a.candidate_email || "—"}
+                        {a.candidate_email ? (
+                          <a
+                            href={`mailto:${a.candidate_email}`}
+                            className="font-medium text-blue-600 hover:underline"
+                          >
+                            {a.candidate_email}
+                          </a>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="border-b border-zinc-100 py-3 pr-3">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${badge.className}`}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedAppId(a.id);
+                            setHighlightModalOpen(true);
+                          }}
+                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold cursor-pointer transition-opacity hover:opacity-80 ${badge.className}`}
+                          title="Click to see matching skills"
                         >
                           {badge.text}
-                        </span>
+                        </button>
                       </td>
                       <td className="border-b border-zinc-100 py-3 pr-3 text-sm text-zinc-700">
-                        {a.resume_filename || "—"}
+                        {a.resume_filename ? (
+                          <a
+                            href={`/api/applications/${a.id}/resume`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-blue-600 hover:underline"
+                            title="View Resume"
+                          >
+                            {a.resume_filename}
+                          </a>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="border-b border-zinc-100 py-3 pr-3 text-sm text-zinc-700">
                         {formatDate(a.created_at)}
@@ -248,7 +278,19 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
           </div>
         )}
       </section>
+
+      <ResumeHighlightModal
+        isOpen={highlightModalOpen}
+        onClose={() => {
+          setHighlightModalOpen(false);
+          setSelectedAppId(null);
+        }}
+        applicationId={selectedAppId || 0}
+        candidateName={
+          applications.find((a) => a.id === selectedAppId)?.candidate_name ||
+          "Candidate"
+        }
+      />
     </div>
   );
 }
-
