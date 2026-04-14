@@ -56,6 +56,19 @@ export default function ResumeHighlightModal({
       });
   }, [isOpen, applicationId]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -146,7 +159,15 @@ export default function ResumeHighlightModal({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-zinc-200 px-6 py-3 text-right">
+        <div className="border-t border-zinc-200 px-6 py-3 flex items-center justify-between">
+          <a
+            href={`/api/applications/${applicationId}/resume`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+          >
+            Open Resume
+          </a>
           <button
             onClick={onClose}
             className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"

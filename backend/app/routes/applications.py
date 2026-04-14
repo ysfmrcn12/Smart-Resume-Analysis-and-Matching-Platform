@@ -171,7 +171,7 @@ def get_highlights(app_id):
     job_skills = set(ner_extractor.extract_skills(job_text))
 
     # Get already-extracted resume skills
-    resume_skills = set(application.extracted_skills or [])
+    resume_skills = set(s.strip() for s in (application.extracted_skills or []) if s.strip())
 
     # Find matching skills (case-insensitive)
     matching_skills = []
@@ -193,7 +193,7 @@ def get_highlights(app_id):
             pos = search_text.find(skill_lower, start)
             if pos == -1:
                 break
-            positions.append([pos, pos + len(skill)])
+            positions.append([pos, pos + len(skill_lower)])
             start = pos + 1
 
         if positions:

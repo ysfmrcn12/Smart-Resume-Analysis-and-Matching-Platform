@@ -36,6 +36,19 @@ export default function JobsPage() {
     void refresh();
   }, []);
 
+  useEffect(() => {
+    if (!createModalOpen) return;
+
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setCreateModalOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [createModalOpen]);
+
   const rowCountLabel = useMemo(() => `${jobs.length} job${jobs.length === 1 ? "" : "s"}`, [jobs.length]);
 
   return (

@@ -59,6 +59,19 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
     void refreshJobAndApplications();
   }, [refreshJobAndApplications]);
 
+  useEffect(() => {
+    if (!applyOpen) return;
+
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setApplyOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [applyOpen]);
+
   const applicantCountLabel = useMemo(() => {
     return `${applications.length} applicant${applications.length === 1 ? "" : "s"}`;
   }, [applications.length]);
