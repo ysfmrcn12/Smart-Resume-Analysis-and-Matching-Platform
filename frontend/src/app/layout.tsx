@@ -17,7 +17,12 @@ export const metadata: Metadata = {
   title: "SRAMP",
   description: "Smart Resume Analysis and Matching Platform",
   icons: {
-    icon: "/favicons/favicon.ico",
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicons/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicons/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: "/favicons/apple-touch-icon.png",
   },
 };
 

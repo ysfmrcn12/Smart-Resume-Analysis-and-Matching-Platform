@@ -2,7 +2,7 @@ export type JobPosting = {
   id: number;
   title: string;
   description: string;
-  requirements: string;
+  requirements: string[];
   company: string;
   location: string;
   created_at: string | null;
@@ -29,7 +29,7 @@ export type RankedApplication = Application & {
 export type JobCreateInput = {
   title: string;
   description: string;
-  requirements?: string;
+  requirements?: string[];
   company?: string;
   location?: string;
 };

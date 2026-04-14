@@ -50,7 +50,7 @@ def create_job():
     job = JobPosting(
         title=_truncate_str(data['title'], TITLE_MAX_LENGTH),
         description=data['description'],
-        requirements=data.get('requirements', '') or '',
+        requirements=data.get('requirements', []) or [],
         company=_truncate_str(data.get('company', ''), COMPANY_MAX_LENGTH),
         location=_truncate_str(data.get('location', ''), LOCATION_MAX_LENGTH),
     )
@@ -72,7 +72,7 @@ def update_job(job_id):
     if 'description' in data:
         job.description = data['description']
     if 'requirements' in data:
-        job.requirements = data['requirements'] or ''
+        job.requirements = data['requirements'] or []
     if 'company' in data:
         job.company = _truncate_str(data['company'], COMPANY_MAX_LENGTH)
     if 'location' in data:

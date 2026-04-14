@@ -18,11 +18,12 @@ function formatDate(value: string | null) {
 
 function scoreLabel(score: number) {
   const s = Number(score);
-  if (Number.isNaN(s)) return { text: "—", className: "bg-zinc-100 text-zinc-700" };
+  if (Number.isNaN(s)) return { text: "—", className: "bg-zinc-100 text-zinc-700", raw: 0 };
   // Backend returns percent values (0..100).
-  if (s >= 80) return { text: s.toFixed(2), className: "bg-green-50 text-green-800" };
-  if (s >= 50) return { text: s.toFixed(2), className: "bg-yellow-50 text-yellow-900" };
-  return { text: s.toFixed(2), className: "bg-red-50 text-red-800" };
+  const rounded = Math.round(s);
+  if (s >= 80) return { text: String(rounded), className: "bg-green-50 text-green-800", raw: s };
+  if (s >= 50) return { text: String(rounded), className: "bg-yellow-50 text-yellow-900", raw: s };
+  return { text: String(rounded), className: "bg-red-50 text-red-800", raw: s };
 }
 
 export default function JobDetailsPage({ jobId }: { jobId: number }) {
@@ -107,62 +108,85 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      {/* Job Details Card */}
+      <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <div className="mb-4">
           <Link
             href="/jobs"
-            className="text-sm font-semibold text-zinc-700 hover:underline"
+            className="inline-flex items-center rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
           >
-            Back to jobs
+            ← Back to jobs
           </Link>
-          <h1 className="mt-2 text-2xl font-semibold text-zinc-900">{job.title}</h1>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-700">
-            {job.description}
-          </p>
-          {job.requirements ? (
-            <div className="mt-3 rounded-lg border border-zinc-200 bg-white p-3">
-              <div className="text-sm font-semibold text-zinc-900">Requirements</div>
-              <div className="mt-1 whitespace-pre-wrap text-sm text-zinc-700">
-                {job.requirements}
-              </div>
-            </div>
-          ) : null}
         </div>
 
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex items-start justify-between gap-6">
+          <div className="flex-1">
+            <h1 className="text-4xl font-bold text-zinc-900">{job.title}</h1>
+            <p className="mt-3 whitespace-pre-wrap text-base text-zinc-700">
+              {job.description}
+            </p>
+            {job.requirements && Array.isArray(job.requirements) && job.requirements.length > 0 ? (
+              <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                <div className="text-sm font-semibold text-zinc-900">Requirements</div>
+                <ul className="mt-2 list-inside list-disc space-y-1">
+                  {job.requirements.map((req, i) => (
+                    <li key={i} className="text-sm text-zinc-700">
+                      {req}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const ok = window.confirm(`Delete job "${job.title}"? This cannot be undone.`);
+                if (!ok) return;
+                deleteJob(job.id).then(() => router.push("/jobs"));
+              }}
+              className="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
+            >
+              Delete Job
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-end">
           <button
             type="button"
             onClick={() => setApplyOpen(true)}
-            className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+            className="rounded-lg bg-zinc-900 px-6 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
           >
-            apply for this job
-          </button>
-          <button
-            type="button"
-            onClick={async () => {
-              const ok = window.confirm(`Delete job "${job.title}"? This cannot be undone.`);
-              if (!ok) return;
-              await deleteJob(job.id);
-              router.push("/jobs");
-            }}
-            className="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
-          >
-            Delete Job
+            Apply for this job
           </button>
         </div>
       </div>
 
-      {applyOpen ? (
-        <div className="flex flex-col gap-4">
-          <UploadResumeForm
-            jobId={jobId}
-            onUploaded={async () => {
-              await refreshApplicationsOnly();
-              setApplyOpen(false);
-            }}
-          />
+      {/* Apply Modal */}
+      {applyOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white shadow-lg">
+            <button
+              onClick={() => setApplyOpen(false)}
+              className="sticky top-3 right-3 z-10 rounded-md p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+            >
+              <span className="text-xl">×</span>
+            </button>
+            <div className="p-6">
+              <UploadResumeForm
+                jobId={jobId}
+                onUploaded={async () => {
+                  await refreshApplicationsOnly();
+                  setApplyOpen(false);
+                }}
+              />
+            </div>
+          </div>
         </div>
-      ) : null}
+      )}
 
       <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -212,9 +236,9 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
                 <tr className="text-left text-xs font-medium text-zinc-600">
                   <th className="border-b border-zinc-200 py-2 pr-3">Candidate</th>
                   <th className="border-b border-zinc-200 py-2 pr-3">Email</th>
-                  <th className="border-b border-zinc-200 py-2 pr-3">Score</th>
                   <th className="border-b border-zinc-200 py-2 pr-3">File</th>
                   <th className="border-b border-zinc-200 py-2 pr-3">Uploaded</th>
+                  <th className="border-b border-zinc-200 py-2 pr-3 text-right">Match Score</th>
                 </tr>
               </thead>
               <tbody>
@@ -239,19 +263,6 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
                           "—"
                         )}
                       </td>
-                      <td className="border-b border-zinc-100 py-3 pr-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedAppId(a.id);
-                            setHighlightModalOpen(true);
-                          }}
-                          className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold cursor-pointer transition-opacity hover:opacity-80 ${badge.className}`}
-                          title="Click to see matching skills"
-                        >
-                          {badge.text}
-                        </button>
-                      </td>
                       <td className="border-b border-zinc-100 py-3 pr-3 text-sm text-zinc-700">
                         {a.resume_filename ? (
                           <a
@@ -269,6 +280,32 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
                       </td>
                       <td className="border-b border-zinc-100 py-3 pr-3 text-sm text-zinc-700">
                         {formatDate(a.created_at)}
+                      </td>
+                      <td className="border-b border-zinc-100 py-3 pr-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAppId(a.id);
+                              setHighlightModalOpen(true);
+                            }}
+                            className={`inline-flex items-center rounded-lg px-3 py-2 text-sm font-bold cursor-pointer transition-opacity hover:opacity-80 ${badge.className}`}
+                            title="Click to see matching skills"
+                          >
+                            {badge.text}%
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAppId(a.id);
+                              setHighlightModalOpen(true);
+                            }}
+                            className="inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+                            title="Analyze resume"
+                          >
+                            Analyze
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -290,6 +327,8 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
           applications.find((a) => a.id === selectedAppId)?.candidate_name ||
           "Candidate"
         }
+        jobRequirements={Array.isArray(job?.requirements) ? job.requirements : []}
+        score={applications.find((a) => a.id === selectedAppId)?.compatibility_score || 0}
       />
     </div>
   );

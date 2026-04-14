@@ -17,6 +17,7 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   async function refresh() {
     setError(null);
@@ -39,12 +40,40 @@ export default function JobsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-zinc-900">Jobs</h1>
-        <p className="mt-1 text-sm text-zinc-600">{rowCountLabel}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-zinc-900">Jobs</h1>
+          <p className="mt-1 text-sm text-zinc-600">{rowCountLabel}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCreateModalOpen(true)}
+          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+        >
+          Create Job
+        </button>
       </div>
 
-      <CreateJobForm onCreated={refresh} />
+      {createModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white shadow-lg">
+            <button
+              onClick={() => setCreateModalOpen(false)}
+              className="sticky top-3 right-3 z-10 rounded-md p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+            >
+              <span className="text-xl">×</span>
+            </button>
+            <div className="p-6">
+              <CreateJobForm
+                onCreated={async () => {
+                  await refresh();
+                  setCreateModalOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         {error ? <div className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div> : null}

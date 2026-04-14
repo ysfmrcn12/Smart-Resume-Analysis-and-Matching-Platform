@@ -12,7 +12,8 @@ export default function CreateJobForm({
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [requirements, setRequirements] = useState("");
+  const [requirements, setRequirements] = useState<string[]>([]);
+  const [requirementInput, setRequirementInput] = useState("");
   const [company, setCompany] = useState("");
   const [location, setLocation] = useState("");
 
@@ -25,7 +26,7 @@ export default function CreateJobForm({
     setDescription(
       "Build accessible UI components, improve performance, and collaborate with design and backend teams.",
     );
-    setRequirements("React, TypeScript, accessibility, performance tuning");
+    setRequirements(["React", "TypeScript", "Accessibility", "Performance Tuning"]);
     setCompany("Acme Labs");
     setLocation("Remote");
   }
@@ -44,14 +45,15 @@ export default function CreateJobForm({
       const payload: JobCreateInput = {
         title: title.trim(),
         description: description.trim(),
-        requirements: requirements.trim() || undefined,
+        requirements: requirements.filter((r) => r.trim().length > 0) || undefined,
         company: company.trim() || undefined,
         location: location.trim() || undefined,
       };
       await createJob(payload);
       setTitle("");
       setDescription("");
-      setRequirements("");
+      setRequirements([]);
+      setRequirementInput("");
       setCompany("");
       setLocation("");
       await onCreated();
@@ -94,15 +96,58 @@ export default function CreateJobForm({
           />
         </label>
 
-        <label className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1">
           <span className="text-sm font-medium text-zinc-800">Requirements</span>
-          <textarea
-            value={requirements}
-            onChange={(e) => setRequirements(e.target.value)}
-            rows={2}
-            className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
-          />
-        </label>
+          <div className="flex gap-2">
+            <input
+              value={requirementInput}
+              onChange={(e) => setRequirementInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (requirementInput.trim()) {
+                    setRequirements([...requirements, requirementInput.trim()]);
+                    setRequirementInput("");
+                  }
+                }
+              }}
+              placeholder="Add a requirement and press Enter"
+              className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (requirementInput.trim()) {
+                  setRequirements([...requirements, requirementInput.trim()]);
+                  setRequirementInput("");
+                }
+              }}
+              className="rounded-lg bg-zinc-200 px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-300"
+            >
+              Add
+            </button>
+          </div>
+          {requirements.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {requirements.map((req, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-1 text-sm text-zinc-900"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setRequirements(requirements.filter((_, idx) => idx !== i))}
+                    className="rounded-full hover:bg-zinc-200 w-5 h-5 flex items-center justify-center text-xs font-bold hover:text-red-600"
+                    title="Remove requirement"
+                  >
+                    ×
+                  </button>
+                  {req}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1">

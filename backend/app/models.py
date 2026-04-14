@@ -10,7 +10,7 @@ class JobPosting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=False)
-    requirements = db.Column(db.Text)
+    requirements = db.Column(db.JSON, default=[])
     company = db.Column(db.String(200))
     location = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -23,7 +23,7 @@ class JobPosting(db.Model):
             'id': self.id,
             'title': self.title,
             'description': self.description,
-            'requirements': self.requirements or '',
+            'requirements': self.requirements or [],
             'company': self.company or '',
             'location': self.location or '',
             'created_at': self.created_at.isoformat() if self.created_at else None,

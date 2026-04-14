@@ -80,7 +80,7 @@ def upload_resume(job_id):
         extracted = ner_extractor.extract_all(resume_text)
 
         # Compute compatibility score
-        job_text = f"{job.title} {job.description} {job.requirements or ''}"
+        job_text = f"{job.title} {job.description} {' '.join(job.requirements or [])}"
         score = matching_engine.compute_similarity(job_text, resume_text)
 
         application = Application(
@@ -167,7 +167,7 @@ def get_highlights(app_id):
     job = JobPosting.query.get_or_404(application.job_posting_id)
 
     # Extract skills from job requirements
-    job_text = f"{job.title} {job.description} {job.requirements or ''}"
+    job_text = f"{job.title} {job.description} {' '.join(job.requirements or [])}"
     job_skills = set(ner_extractor.extract_skills(job_text))
 
     # Get already-extracted resume skills
@@ -218,7 +218,7 @@ def rank_applicants(job_id):
         for a in applications
     ]
     ranked = matching_engine.rank_candidates(
-        f"{job.title} {job.description} {job.requirements or ''}",
+        f"{job.title} {job.description} {' '.join(job.requirements or [])}",
         candidates
     )
 

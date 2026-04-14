@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resume-Job Compatibility Scoring Pipeline</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #f7f6f3;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+    padding: 32px 24px 24px;
+    max-width: 720px;
+    width: 100%;
+  }
+  h1 {
+    font-size: 17px;
+    font-weight: 600;
+    color: #1a1a18;
+    margin-bottom: 6px;
+    letter-spacing: -0.01em;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: #73726c;
+    margin-bottom: 28px;
+  }
+  svg text { font-family: 'Segoe UI', system-ui, sans-serif; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Resume–Job Compatibility Scoring Pipeline</h1>
+  <p class="subtitle">Two parallel pipelines combine to produce a ranked compatibility score.</p>
+
+  <svg width="100%" viewBox="0 0 680 820" role="img" xmlns="http://www.w3.org/2000/svg">
+    <title>Resume-Job Compatibility Scoring Pipeline</title>
+    <desc>Flowchart showing two parallel pipelines — TF-IDF similarity and skill overlap — that combine into a final ranked compatibility score.</desc>
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M2 1L8 5L2 9" fill="none" stroke="#888780" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+      <marker id="arrow-dark" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M2 1L8 5L2 9" fill="none" stroke="#5f5e5a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </marker>
+    </defs>
+
+    <!-- INPUT BOX -->
+    <rect x="190" y="24" width="300" height="44" rx="8" fill="#f1efe8" stroke="#b4b2a9" stroke-width="0.5"/>
+    <text x="340" y="40" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#2c2c2a">Inputs</text>
+    <text x="340" y="58" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#5f5e5a">Job text + resume text</text>
+
+    <!-- Split arrows -->
+    <line x1="260" y1="68" x2="180" y2="108" stroke="#888780" stroke-width="0.8" marker-end="url(#arrow)"/>
+    <line x1="420" y1="68" x2="500" y2="108" stroke="#888780" stroke-width="0.8" marker-end="url(#arrow)"/>
+
+    <!-- Pipeline labels -->
+    <text x="148" y="104" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#888780">Pipeline A</text>
+    <text x="532" y="104" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#888780">Pipeline B</text>
+
+    <!-- LEFT: Step 1 Preprocess -->
+    <rect x="60" y="112" width="176" height="44" rx="8" fill="#eeedfe" stroke="#afa9ec" stroke-width="0.5"/>
+    <text x="148" y="128" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#26215c">Preprocess texts</text>
+    <text x="148" y="146" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#534ab7">Tokenize, normalize</text>
+    <line x1="148" y1="156" x2="148" y2="184" stroke="#888780" stroke-width="0.8" marker-end="url(#arrow)"/>
+
+    <!-- LEFT: Step 2 TF-IDF -->
+    <rect x="60" y="188" width="176" height="44" rx="8" fill="#eeedfe" stroke="#afa9ec" stroke-width="0.5"/>
+    <text x="148" y="204" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#26215c">TF-IDF vectorization</text>
+    <text x="148" y="222" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#534ab7">Term frequency weighting</text>
+    <line x1="148" y1="232" x2="148" y2="260" stroke="#888780" stroke-width="0.8" marker-end="url(#arrow)"/>
+
+    <!-- LEFT: Step 3 Cosine -->
+    <rect x="60" y="264" width="176" height="44" rx="8" fill="#eeedfe" stroke="#afa9ec" stroke-width="0.5"/>
+    <text x="148" y="280" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#26215c">Raw cosine similarity</text>
+    <text x="148" y="298" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#534ab7">Vector dot product</text>
+    <line x1="148" y1="308" x2="148" y2="336" stroke="#888780" stroke-width="0.8" marker-end="url(#arrow)"/>
+
+    <!-- LEFT: Step 4 Calibrate -->
+    <rect x="60" y="340" width="176" height="56" rx="8" fill="#eeedfe" stroke="#afa9ec" stroke-width="0.5"/>
+    <text x="148" y="358" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#26215c">Calibrate similarity</text>
+    <text x="148" y="376" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#534ab7">1 − exp(−k × raw_sim)</text>
+    <text x="148" y="390" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#534ab7">Bounded [0, 1]</text>
+
+    <!-- RIGHT: Step 1 Extract job skills -->
+    <rect x="444" y="112" width="176" height="44" rx="8" fill="#e1f5ee" stroke="#5dcaa5" stroke-width="0.5"/>
+    <text x="532" y="128" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#04342c">Extract job skills</text>
+    <text x="532" y="146" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0f6e56">NLP skill detection</text>
+    <line x1="532" y1="156" x2="532" y2="184" stroke="#888780" stroke-width="0.8" marker-end="url(#arrow)"/>
+
+    <!-- RIGHT: Step 2 Extract resume skills -->
+    <rect x="444" y="188" width="176" height="44" rx="8" fill="#e1f5ee" stroke="#5dcaa5" stroke-width="0.5"/>
+    <text x="532" y="204" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#04342c">Extract resume skills</text>
+    <text x="532" y="222" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0f6e56">NLP skill detection</text>
+    <line x1="532" y1="232" x2="532" y2="260" stroke="#888780" stroke-width="0.8" marker-end="url(#arrow)"/>
+
+    <!-- RIGHT: Step 3 Skill overlap -->
+    <rect x="444" y="264" width="176" height="44" rx="8" fill="#e1f5ee" stroke="#5dcaa5" stroke-width="0.5"/>
+    <text x="532" y="280" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#04342c">Skill overlap ratio</text>
+    <text x="532" y="298" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0f6e56">Matched / total skills</text>
+    <line x1="532" y1="308" x2="532" y2="336" stroke="#888780" stroke-width="0.8" marker-end="url(#arrow)"/>
+
+    <!-- RIGHT: Step 4 Skill multiplier -->
+    <rect x="444" y="340" width="176" height="56" rx="8" fill="#e1f5ee" stroke="#5dcaa5" stroke-width="0.5"/>
+    <text x="532" y="358" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#04342c">Skill multiplier</text>
+    <text x="532" y="376" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0f6e56">Scales final score</text>
+    <text x="532" y="390" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#0f6e56">Based on overlap ratio</text>
+
+    <!-- Converging arrows to Combine -->
+    <path d="M148 396 L148 490 L236 490" fill="none" stroke="#888780" stroke-width="0.8" marker-end="url(#arrow)"/>
+    <path d="M532 396 L532 490 L444 490" fill="none" stroke="#888780" stroke-width="0.8" marker-end="url(#arrow)"/>
+    <text x="190" y="484" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#888780">calibrated sim</text>
+    <text x="490" y="484" text-anchor="middle" dominant-baseline="central" font-size="11" fill="#888780">skill multiplier</text>
+
+    <!-- COMBINE -->
+    <rect x="236" y="464" width="208" height="52" rx="8" fill="#faeeda" stroke="#ef9f27" stroke-width="0.5"/>
+    <text x="340" y="484" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#412402">Combine</text>
+    <text x="340" y="502" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#854f0b">Calibrated sim × skill mult.</text>
+    <line x1="340" y1="516" x2="340" y2="556" stroke="#888780" stroke-width="0.8" marker-end="url(#arrow)"/>
+
+    <!-- FINAL SCORE -->
+    <rect x="210" y="560" width="260" height="56" rx="8" fill="#faece7" stroke="#f0997b" stroke-width="0.5"/>
+    <text x="340" y="580" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#4a1b0c">Final score</text>
+    <text x="340" y="600" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#993c1d">Calibrated sim × skill multiplier</text>
+    <line x1="340" y1="616" x2="340" y2="654" stroke="#888780" stroke-width="0.8" marker-end="url(#arrow)"/>
+
+    <!-- OUTPUT -->
+    <rect x="210" y="658" width="260" height="44" rx="8" fill="#f1efe8" stroke="#b4b2a9" stroke-width="0.5"/>
+    <text x="340" y="674" text-anchor="middle" dominant-baseline="central" font-size="14" font-weight="500" fill="#2c2c2a">Output</text>
+    <text x="340" y="692" text-anchor="middle" dominant-baseline="central" font-size="12" fill="#5f5e5a">Ranked compatibility score</text>
+
+    <!-- Legend -->
+    <rect x="60" y="752" width="14" height="14" rx="3" fill="#eeedfe" stroke="#afa9ec" stroke-width="0.5"/>
+    <text x="80" y="762" dominant-baseline="central" font-size="12" fill="#5f5e5a">TF-IDF pipeline</text>
+    <rect x="200" y="752" width="14" height="14" rx="3" fill="#e1f5ee" stroke="#5dcaa5" stroke-width="0.5"/>
+    <text x="220" y="762" dominant-baseline="central" font-size="12" fill="#5f5e5a">Skill pipeline</text>
+    <rect x="320" y="752" width="14" height="14" rx="3" fill="#faeeda" stroke="#ef9f27" stroke-width="0.5"/>
+    <text x="340" y="762" dominant-baseline="central" font-size="12" fill="#5f5e5a">Combine</text>
+    <rect x="420" y="752" width="14" height="14" rx="3" fill="#faece7" stroke="#f0997b" stroke-width="0.5"/>
+    <text x="440" y="762" dominant-baseline="central" font-size="12" fill="#5f5e5a">Final score</text>
+  </svg>
+</div>
+</body>
+</html>
