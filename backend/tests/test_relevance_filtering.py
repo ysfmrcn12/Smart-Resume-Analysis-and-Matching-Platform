@@ -40,3 +40,17 @@ def test_negated_required_skill_reduces_score_and_is_reported():
     assert report["skills"]["skill_multiplier"] < 0.7
     # Final score should be moderated instead of being treated as a strong match.
     assert score < 0.6
+
+
+def test_non_negation_words_do_not_trigger_negation():
+    engine = MatchingEngine()
+    job = "Frontend developer with React and TypeScript"
+    resume = (
+        "I know React and TypeScript very well. "
+        "I know modern frontend engineering patterns."
+    )
+    report = engine.explain_score(job, resume)
+
+    # "know" contains "no" as a substring, but should not be treated as negation.
+    assert "react" not in report["skills"]["negated_required_skills"]
+    assert report["skills"]["skill_multiplier"] >= 0.6

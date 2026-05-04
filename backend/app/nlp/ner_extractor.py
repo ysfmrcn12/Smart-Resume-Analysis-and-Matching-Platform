@@ -122,7 +122,12 @@ class NERExtractor:
         norm = re.sub(r"\s+", " ", context.lower()).strip()
         if any(exc in norm for exc in self.NEGATION_EXCEPTIONS):
             return False
-        return any(cue in norm for cue in self.NEGATION_CUES)
+        for cue in self.NEGATION_CUES:
+            # Use strict token boundaries so "know" does not match "no".
+            pattern = self._build_term_pattern(cue.lower())
+            if re.search(pattern, norm, flags=re.IGNORECASE):
+                return True
+        return False
 
     def extract_negated_skills(self, text: str, candidate_skills: List[str]) -> List[str]:
         """
