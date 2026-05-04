@@ -141,8 +141,7 @@ export default function ResumeHighlightModal({
                 <div className="whitespace-pre-wrap text-sm text-zinc-800">
                   <HighlightedText
                     text={data.resume_text}
-                    positiveHighlights={data.matching_keywords}
-                    negatedHighlights={data.negated_keyword_positions}
+                    matchingSkills={data.matching_keywords}
                   />
                 </div>
               ) : null}
@@ -225,23 +224,6 @@ function ScoringReportCard({ data }: { data: HighlightReport }) {
           </div>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-3">
-          <div className="text-sm font-semibold text-zinc-900">Negated required skills</div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {data.negated_required_skills.length ? (
-              data.negated_required_skills.map((skill) => (
-                <span
-                  key={skill}
-                  className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-800"
-                >
-                  not {skill}
-                </span>
-              ))
-            ) : (
-              <span className="text-xs text-zinc-500">No required skills were explicitly negated.</span>
-            )}
-          </div>
-        </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-3">
           <div className="text-sm font-semibold text-zinc-900">Other matched keywords</div>
           <div className="mt-2 flex flex-wrap gap-2">
             {data.lexical_overlap_keywords.length ? (
@@ -265,85 +247,74 @@ function ScoringReportCard({ data }: { data: HighlightReport }) {
 
 function HighlightedText({
   text,
-  positiveHighlights,
-  negatedHighlights,
+  matchingSkills,
 }: {
   text: string;
-  positiveHighlights: Record<string, Array<[number, number]>>;
-  negatedHighlights: Record<string, Array<[number, number]>>;
+  matchingSkills: Record<string, Array<[number, number]>>;
 }) {
-  type Segment = { start: number; end: number; kind: "positive" | "negated" };
-  const segments: Segment[] = [];
+  // Build a set of all position ranges to highlight
+  const highlightRanges = new Set<number>();
 
-  const collect = (
-    positionsByKeyword: Record<string, Array<[number, number]>>,
-    kind: Segment["kind"]
-  ) => {
-    Object.values(positionsByKeyword).forEach((positions) => {
-      positions.forEach(([start, end]) => {
-        if (start >= 0 && end > start && end <= text.length) {
-          segments.push({ start, end, kind });
-        }
-      });
+  Object.entries(matchingSkills).forEach(([_skill, positions]) => {
+    positions.forEach(([start, end]) => {
+      for (let i = start; i < end; i++) {
+        highlightRanges.add(i);
+      }
     });
-  };
-
-  collect(positiveHighlights, "positive");
-  collect(negatedHighlights, "negated");
-
-  if (!segments.length) {
-    return <>{text}</>;
-  }
-
-  segments.sort((a, b) => {
-    if (a.start !== b.start) return a.start - b.start;
-    return b.end - a.end;
   });
 
   const elements = [];
-  let cursor = 0;
+  let currentPos = 0;
+  const sortedPositions = Array.from(highlightRanges).sort((a, b) => a - b);
 
-  for (let i = 0; i < segments.length; i += 1) {
-    const seg = segments[i];
-    const start = Math.max(seg.start, cursor);
-    if (start >= seg.end) {
-      continue;
+  // Group consecutive positions into ranges
+  let rangeStart: number | null = null;
+  let prevPos = -2;
+
+  for (const pos of sortedPositions) {
+    if (pos !== prevPos + 1) {
+      if (rangeStart !== null && prevPos !== null) {
+        // End of a range, add non-highlighted text before and highlighted after
+        if (rangeStart > currentPos) {
+          elements.push(
+            <span key={`text-${currentPos}`}>
+              {text.slice(currentPos, rangeStart)}
+            </span>
+          );
+        }
+        elements.push(
+          <mark key={`highlight-${rangeStart}`} className="bg-yellow-300">
+            {text.slice(rangeStart, prevPos + 1)}
+          </mark>
+        );
+        currentPos = prevPos + 1;
+      }
+      rangeStart = pos;
     }
+    prevPos = pos;
+  }
 
-    if (start > cursor) {
-      elements.push(<span key={`text-${cursor}`}>{text.slice(cursor, start)}</span>);
+  // Handle remaining ranges
+  if (rangeStart !== null && prevPos !== null) {
+    if (rangeStart > currentPos) {
+      elements.push(
+        <span key={`text-${currentPos}`}>{text.slice(currentPos, rangeStart)}</span>
+      );
     }
-
     elements.push(
-      <mark
-        key={`${seg.kind}-${start}-${seg.end}`}
-        className={seg.kind === "negated" ? "bg-red-300" : "bg-yellow-300"}
-      >
-        {text.slice(start, seg.end)}
+      <mark key={`highlight-${rangeStart}`} className="bg-yellow-300">
+        {text.slice(rangeStart, prevPos + 1)}
       </mark>
     );
-    cursor = seg.end;
+    currentPos = prevPos + 1;
   }
 
-  if (cursor < text.length) {
+  // Add remaining text
+  if (currentPos < text.length) {
     elements.push(
-      <span key={`text-${cursor}`}>{text.slice(cursor)}</span>
+      <span key={`text-${currentPos}`}>{text.slice(currentPos)}</span>
     );
   }
 
-  return (
-    <>
-      <div className="mb-2 flex items-center gap-4 text-xs text-zinc-600">
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-3 w-3 rounded-sm bg-yellow-300" />
-          matched keyword
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-3 w-3 rounded-sm bg-red-300" />
-          negated required skill
-        </span>
-      </div>
-      {elements}
-    </>
-  );
+  return <>{elements}</>;
 }

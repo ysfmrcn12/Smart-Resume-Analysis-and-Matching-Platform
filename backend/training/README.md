@@ -5,7 +5,7 @@ This folder provides scripts to train the two model upgrades currently used by t
 1. **Skill extraction model**: spaCy NER fine-tuning
 2. **Section classifier**: lightweight classifier for resume section detection
 
-The ranking pipeline in the app uses TF-IDF + skill overlap/negation logic.
+The ranking pipeline in the app uses TF-IDF + skill overlap logic.
 
 ## 1) Train NER model
 

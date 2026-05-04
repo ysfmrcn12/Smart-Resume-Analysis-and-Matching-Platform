@@ -27,15 +27,6 @@ class NERExtractor:
         'experience', 'work experience', 'employment', 'professional experience',
         'career', 'work history', 'employment history'
     ]
-    NEGATION_CUES = [
-        "not", "no", "never", "without", "lacking", "lack", "unable",
-        "don't", "doesn't", "cannot", "can't"
-    ]
-    NEGATION_EXCEPTIONS = [
-        "not only",
-        "not just",
-        "not limited",
-    ]
 
     def __init__(self, model_name: str = None):
         self._nlp = None
@@ -105,61 +96,6 @@ class NERExtractor:
                 return rest.strip()
         return ''
 
-    @staticmethod
-    def _is_simple_term(term: str) -> bool:
-        """Whether term can safely use word boundaries in regex matching."""
-        return bool(re.fullmatch(r"[a-z0-9 ]+", term))
-
-    def _build_term_pattern(self, term: str) -> str:
-        """Build regex pattern for term with safe boundaries when possible."""
-        escaped = re.escape(term)
-        if self._is_simple_term(term):
-            return rf"\b{escaped}\b"
-        return escaped
-
-    def _has_negation_cue(self, context: str) -> bool:
-        """Detect negation cues while avoiding common non-negation patterns."""
-        norm = re.sub(r"\s+", " ", context.lower()).strip()
-        if any(exc in norm for exc in self.NEGATION_EXCEPTIONS):
-            return False
-        for cue in self.NEGATION_CUES:
-            # Use strict token boundaries so "know" does not match "no".
-            pattern = self._build_term_pattern(cue.lower())
-            if re.search(pattern, norm, flags=re.IGNORECASE):
-                return True
-        return False
-
-    def extract_negated_skills(self, text: str, candidate_skills: List[str]) -> List[str]:
-        """
-        Detect skills mentioned in a negated context.
-
-        Examples:
-        - "I do not know React"
-        - "No experience with Kubernetes"
-        - "Without Java background"
-        """
-        if not text or not candidate_skills:
-            return []
-
-        text_lower = text.lower()
-        negated = set()
-        for raw_skill in candidate_skills:
-            skill = re.sub(r"\s+", " ", str(raw_skill).strip().lower())
-            if not skill:
-                continue
-            pattern = self._build_term_pattern(skill)
-            for match in re.finditer(pattern, text_lower, flags=re.IGNORECASE):
-                start = match.start()
-                end = match.end()
-                # Negation is usually nearby and precedes the skill mention.
-                left_ctx = text_lower[max(0, start - 48):start]
-                both_ctx = text_lower[max(0, start - 48):min(len(text_lower), end + 16)]
-                if self._has_negation_cue(left_ctx) or self._has_negation_cue(both_ctx):
-                    negated.add(skill)
-                    break
-
-        return sorted(negated)
-
     def extract_skills(self, text: str) -> List[str]:
         """
         Extract skills from resume using NER and pattern matching.
@@ -208,9 +144,7 @@ class NERExtractor:
             if s2:
                 normalized.add(s2)
 
-        negated = set(self.extract_negated_skills(text, list(normalized)))
-        effective_skills = normalized.difference(negated)
-        return sorted(list(effective_skills))[:50]  # Limit to 50 skills
+        return sorted(list(normalized))[:50]  # Limit to 50 skills
 
     def extract_experience(self, text: str) -> List[Dict]:
         """
