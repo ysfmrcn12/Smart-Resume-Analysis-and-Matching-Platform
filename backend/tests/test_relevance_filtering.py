@@ -23,3 +23,20 @@ def test_java_resume_high_score():
     )
     score = engine.compute_similarity(job, java_resume)
     assert score > 0.4
+
+
+def test_negated_required_skill_reduces_score_and_is_reported():
+    engine = MatchingEngine()
+    job = "Frontend developer with React, TypeScript, and JavaScript"
+    resume = (
+        "I am a frontend engineer with JavaScript and TypeScript experience, "
+        "but I do not know React and have no React project experience."
+    )
+    report = engine.explain_score(job, resume)
+    score = report["final_score"]
+
+    assert "react" in report["skills"]["negated_required_skills"]
+    # Negation should significantly lower skill multiplier.
+    assert report["skills"]["skill_multiplier"] < 0.7
+    # Final score should be moderated instead of being treated as a strong match.
+    assert score < 0.6

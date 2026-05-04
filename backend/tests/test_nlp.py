@@ -68,3 +68,4 @@ class TestMatchingEngine:
         assert "tfidf" in report
         assert 0.0 <= report["final_score"] <= 1.0
         assert report["skills"]["matched_skill_count"] >= 1
+        assert "negated_required_skills" in report["skills"]

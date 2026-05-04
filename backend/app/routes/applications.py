@@ -52,6 +52,26 @@ def _extract_keyword_overlap(job_text: str, resume_text: str, max_terms: int = 2
     return overlap[:max_terms]
 
 
+def _extract_negated_keywords_positions(text: str, keywords):
+    """Return positions for explicitly negated keyword mentions."""
+    out = {}
+    if not text:
+        return out
+    text_lower = text.lower()
+    for kw in keywords:
+        k = str(kw).strip().lower()
+        if not k:
+            continue
+        escaped = re.escape(k)
+        pattern = rf"\b{escaped}\b" if " " not in k else escaped
+        for m in re.finditer(pattern, text_lower, flags=re.IGNORECASE):
+            left_ctx = text_lower[max(0, m.start() - 48):m.start()]
+            both_ctx = text_lower[max(0, m.start() - 48):min(len(text_lower), m.end() + 16)]
+            if ner_extractor._has_negation_cue(left_ctx) or ner_extractor._has_negation_cue(both_ctx):
+                out.setdefault(k, []).append([m.start(), m.end()])
+    return out
+
+
 def get_upload_folder():
     """Get or create upload folder."""
     folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
@@ -207,6 +227,7 @@ def get_highlights(app_id):
     score_report = matching_engine.explain_score(job_text, resume_text)
 
     matched_skills = score_report.get("skills", {}).get("matched_skills", [])
+    negated_required_skills = score_report.get("skills", {}).get("negated_required_skills", [])
     lexical_overlap = _extract_keyword_overlap(job_text, resume_text, max_terms=25)
 
     matching_skill_positions = {}
@@ -217,11 +238,18 @@ def get_highlights(app_id):
 
     matching_keyword_positions = dict(matching_skill_positions)
     for keyword in lexical_overlap:
+        if keyword in negated_required_skills:
+            continue
         if keyword in matching_keyword_positions:
             continue
         positions = _find_term_positions(resume_text, keyword)
         if positions:
             matching_keyword_positions[keyword] = positions
+
+    negated_keyword_positions = _extract_negated_keywords_positions(
+        resume_text,
+        negated_required_skills,
+    )
 
     sections = section_classifier.extract_sections(resume_text)
     scoring_breakdown = {
@@ -248,6 +276,8 @@ def get_highlights(app_id):
         'matched_count': len(matched_skills),
         'job_skill_count': int(score_report.get("skills", {}).get("job_skill_count", 0)),
         'matched_skills': matched_skills,
+        'negated_required_skills': negated_required_skills,
+        'negated_keyword_positions': negated_keyword_positions,
         'lexical_overlap_keywords': lexical_overlap,
         'sections': sections,
         'scoring_report': scoring_breakdown,

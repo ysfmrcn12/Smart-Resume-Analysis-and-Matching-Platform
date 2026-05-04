@@ -67,13 +67,17 @@ class MatchingEngine:
         return float(cosine_similarity(job_vec, resume_vec)[0][0])
 
     def _compute_skill_metrics(self, job_text: str, resume_text: str) -> Dict:
-        """Extract skill overlap statistics and multiplier."""
+        """Extract skill overlap statistics, negation cues, and multiplier."""
         try:
             job_skills = set(self.extractor.extract_skills(job_text))
             resume_skills = set(self.extractor.extract_skills(resume_text))
+            negated_required_skills = set(
+                self.extractor.extract_negated_skills(resume_text, sorted(job_skills))
+            )
         except Exception:
             job_skills = set()
             resume_skills = set()
+            negated_required_skills = set()
 
         matched_skills = job_skills.intersection(resume_skills)
         job_skill_count = len(job_skills)
@@ -87,10 +91,17 @@ class MatchingEngine:
         else:
             skill_multiplier = 0.6 + 0.4 * skill_overlap_ratio
 
+        # Extra penalty: resume explicitly says it does not have required skills.
+        negated_ratio = len(negated_required_skills) / max(1, job_skill_count)
+        if negated_ratio > 0:
+            negation_penalty = 1.0 - (0.8 * negated_ratio)
+            skill_multiplier *= max(0.1, negation_penalty)
+
         return {
             "job_skills": sorted(job_skills),
             "resume_skills": sorted(resume_skills),
             "matched_skills": sorted(matched_skills),
+            "negated_required_skills": sorted(negated_required_skills),
             "job_skill_count": job_skill_count,
             "resume_skill_count": resume_skill_count,
             "matched_skill_count": overlap,
@@ -115,6 +126,7 @@ class MatchingEngine:
                 "job_skills": [],
                 "resume_skills": [],
                 "matched_skills": [],
+                "negated_required_skills": [],
                 "job_skill_count": 0,
                 "resume_skill_count": 0,
                 "matched_skill_count": 0,

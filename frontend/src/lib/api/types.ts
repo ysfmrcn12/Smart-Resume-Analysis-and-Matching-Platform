@@ -41,9 +41,11 @@ export type HighlightReport = {
   resume_text: string;
   matching_skills: Record<string, Array<[number, number]>>;
   matching_keywords: Record<string, Array<[number, number]>>;
+  negated_keyword_positions: Record<string, Array<[number, number]>>;
   matched_count: number;
   job_skill_count: number;
   matched_skills: string[];
+  negated_required_skills: string[];
   lexical_overlap_keywords: string[];
   sections: Record<string, string>;
   scoring_report: ScoringReport;
