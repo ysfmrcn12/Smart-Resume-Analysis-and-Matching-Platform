@@ -1,16 +1,18 @@
-"""Matching engine using TF-IDF and cosine similarity for job-resume matching."""
+"""Matching engine for explainable job-resume relevance scoring."""
 import math
-from typing import Dict, List, Tuple
+import os
+from typing import Dict, List, Optional, Tuple
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from app.nlp.preprocessing import TextPreprocessor
 from app.nlp.ner_extractor import NERExtractor
+from app.nlp.semantic_ranker import SemanticRanker
 
 
 class MatchingEngine:
-    """Score and rank candidates based on job-resume compatibility."""
+    """Score and rank candidates with explainable hybrid scoring."""
 
     def __init__(self, max_features: int = 5000, ngram_range: Tuple[int, int] = (1, 2)):
         """
@@ -30,10 +32,150 @@ class MatchingEngine:
         )
         self.preprocessor = TextPreprocessor(lowercase=True, remove_stop_words=False)
         self.extractor = NERExtractor()
+        self.semantic_ranker = SemanticRanker()
+        self.semantic_weight = self._clamp_float(
+            float(os.getenv("SEMANTIC_RANKER_WEIGHT", "0.6")),
+            min_value=0.0,
+            max_value=1.0,
+        )
+
+    @staticmethod
+    def _clamp_float(value: float, min_value: float = 0.0, max_value: float = 1.0) -> float:
+        """Clamp float value to a range."""
+        return max(min_value, min(max_value, value))
 
     def _preprocess(self, text: str) -> str:
         """Preprocess text for vectorization."""
         return self.preprocessor.preprocess_for_tfidf(text)
+
+    @staticmethod
+    def _calibrate_similarity(raw_similarity: float, k: float = 30.0) -> float:
+        """
+        Calibrate cosine similarity into a human-friendlier range.
+
+        TF-IDF cosine values are often small for relevant pairs, so we use a
+        saturating transform to improve score spread in the mid range.
+        """
+        raw_similarity = max(0.0, min(1.0, raw_similarity))
+        return 1.0 - math.exp(-k * raw_similarity)
+
+    def _compute_tfidf_similarity(self, job_processed: str, resume_processed: str) -> float:
+        """Compute raw TF-IDF cosine similarity for one pair."""
+        self.vectorizer.fit([job_processed, resume_processed])
+        job_vec = self.vectorizer.transform([job_processed])
+        resume_vec = self.vectorizer.transform([resume_processed])
+        return float(cosine_similarity(job_vec, resume_vec)[0][0])
+
+    def _compute_skill_metrics(self, job_text: str, resume_text: str) -> Dict:
+        """Extract skill overlap statistics and multiplier."""
+        try:
+            job_skills = set(self.extractor.extract_skills(job_text))
+            resume_skills = set(self.extractor.extract_skills(resume_text))
+        except Exception:
+            job_skills = set()
+            resume_skills = set()
+
+        matched_skills = job_skills.intersection(resume_skills)
+        job_skill_count = len(job_skills)
+        resume_skill_count = len(resume_skills)
+        overlap = len(matched_skills)
+        skill_overlap_ratio = overlap / max(1, job_skill_count)
+
+        if skill_overlap_ratio == 0:
+            # If we could not extract job skills, avoid an arbitrary penalty.
+            skill_multiplier = 1.0 if job_skill_count == 0 else 0.25
+        else:
+            skill_multiplier = 0.6 + 0.4 * skill_overlap_ratio
+
+        return {
+            "job_skills": sorted(job_skills),
+            "resume_skills": sorted(resume_skills),
+            "matched_skills": sorted(matched_skills),
+            "job_skill_count": job_skill_count,
+            "resume_skill_count": resume_skill_count,
+            "matched_skill_count": overlap,
+            "skill_overlap_ratio": skill_overlap_ratio,
+            "skill_multiplier": skill_multiplier,
+        }
+
+    def explain_score(self, job_text: str, resume_text: str) -> Dict:
+        """
+        Return a detailed scoring report for one job/resume pair.
+
+        Keeps TF-IDF as a first-class baseline while optionally blending an
+        externally fine-tuned semantic cross-encoder score when configured.
+        """
+        empty_report = {
+            "final_score": 0.0,
+            "base_score_before_skill_adjustment": 0.0,
+            "weights": {"tfidf": 1.0, "semantic": 0.0},
+            "tfidf": {"raw_similarity": 0.0, "calibrated_similarity": 0.0},
+            "semantic": {"enabled": False, "used": False, "score": None},
+            "skills": {
+                "job_skills": [],
+                "resume_skills": [],
+                "matched_skills": [],
+                "job_skill_count": 0,
+                "resume_skill_count": 0,
+                "matched_skill_count": 0,
+                "skill_overlap_ratio": 0.0,
+                "skill_multiplier": 1.0,
+            },
+        }
+        if not job_text or not resume_text:
+            return empty_report
+
+        job_processed = self._preprocess(job_text)
+        resume_processed = self._preprocess(resume_text)
+        if not job_processed or not resume_processed:
+            return empty_report
+
+        try:
+            raw_tfidf = self._compute_tfidf_similarity(job_processed, resume_processed)
+            tfidf_calibrated = self._calibrate_similarity(raw_tfidf)
+        except Exception:
+            raw_tfidf = 0.0
+            tfidf_calibrated = 0.0
+
+        semantic_score: Optional[float] = None
+        semantic_enabled = False
+        semantic_used = False
+        if self.semantic_ranker:
+            semantic_enabled = self.semantic_ranker.enabled
+            semantic_score = self.semantic_ranker.score_pair(job_text, resume_text)
+            semantic_used = semantic_score is not None
+
+        if semantic_used and semantic_score is not None:
+            semantic_weight = self.semantic_weight
+            tfidf_weight = 1.0 - semantic_weight
+            base_score = (tfidf_weight * tfidf_calibrated) + (semantic_weight * semantic_score)
+        else:
+            semantic_weight = 0.0
+            tfidf_weight = 1.0
+            base_score = tfidf_calibrated
+
+        skill_metrics = self._compute_skill_metrics(job_text, resume_text)
+        final = self._clamp_float(base_score * skill_metrics["skill_multiplier"])
+
+        return {
+            "final_score": final,
+            "base_score_before_skill_adjustment": self._clamp_float(base_score),
+            "weights": {
+                "tfidf": tfidf_weight,
+                "semantic": semantic_weight,
+            },
+            "tfidf": {
+                "raw_similarity": self._clamp_float(raw_tfidf),
+                "calibrated_similarity": self._clamp_float(tfidf_calibrated),
+            },
+            "semantic": {
+                "enabled": semantic_enabled,
+                "used": semantic_used,
+                "score": self._clamp_float(semantic_score) if semantic_score is not None else None,
+                "model": self.semantic_ranker.info() if self.semantic_ranker else {},
+            },
+            "skills": skill_metrics,
+        }
 
     def compute_similarity(self, job_text: str, resume_text: str) -> float:
         """
@@ -46,57 +188,8 @@ class MatchingEngine:
         Returns:
             Similarity score between 0 and 1
         """
-        if not job_text or not resume_text:
-            return 0.0
-
-        job_processed = self._preprocess(job_text)
-        resume_processed = self._preprocess(resume_text)
-
-        if not job_processed or not resume_processed:
-            return 0.0
-
-        try:
-            # Fit on job+resume so the vocabulary/IDF reflects both texts.
-            # This generally improves stability and prevents overly penalizing resumes
-            # that use different wording than the job requirements.
-            self.vectorizer.fit([job_processed, resume_processed])
-            job_vec = self.vectorizer.transform([job_processed])
-            resume_vec = self.vectorizer.transform([resume_processed])
-            raw_similarity = float(cosine_similarity(job_vec, resume_vec)[0][0])
-            # Calibrate cosine similarity so "relevant" resumes are more visible.
-            # TF-IDF cosine values are often small (~0.01-0.1), so we apply a
-            # saturating transform: sim' = 1 - exp(-k * sim).
-            # k controls how quickly scores rise.
-            raw_similarity = max(0.0, min(1.0, raw_similarity))
-            k = 30.0
-            similarity = 1.0 - math.exp(-k * raw_similarity)
-            # Compute skill overlap to penalize unrelated resumes
-            try:
-                job_skills = set(self.extractor.extract_skills(job_text))
-                resume_skills = set(self.extractor.extract_skills(resume_text))
-            except Exception:
-                job_skills = set()
-                resume_skills = set()
-
-            overlap = len(job_skills.intersection(resume_skills))
-            job_skill_count = max(1, len(job_skills))
-            skill_overlap_ratio = overlap / job_skill_count
-
-            # If no skill overlap, apply a penalty; otherwise boost by overlap
-            if skill_overlap_ratio == 0:
-                # If we couldn't extract any job skills, avoid a harsh penalty.
-                # This prevents scores collapsing to ~0 when NER/pattern extraction
-                # doesn't produce overlapping skill tokens.
-                if len(job_skills) == 0:
-                    final = float(similarity)
-                else:
-                    final = float(similarity) * 0.25
-            else:
-                final = float(similarity) * (0.6 + 0.4 * skill_overlap_ratio)
-
-            return max(0.0, min(1.0, final))
-        except Exception:
-            return 0.0
+        report = self.explain_score(job_text, resume_text)
+        return float(report.get("final_score", 0.0))
 
     def compute_similarity_batch(
         self,
@@ -116,52 +209,11 @@ class MatchingEngine:
         if not resumes:
             return []
 
-        job_processed = self._preprocess(job_text)
-        all_texts = [job_processed]
-        ids = []
-
-        for rid, rtext in resumes:
-            ids.append(rid)
-            all_texts.append(self._preprocess(rtext))
-
-        try:
-            # Fit on job + all resumes so each resume is comparable in the same vector space.
-            self.vectorizer.fit(all_texts)
-            job_vec = self.vectorizer.transform([job_processed])
-            # Pre-extract job skills once
-            try:
-                job_skills = set(self.extractor.extract_skills(job_text))
-            except Exception:
-                job_skills = set()
-
-            scores = []
-            for i, rid in enumerate(ids):
-                resume_vec = self.vectorizer.transform([all_texts[i + 1]])
-                raw_sim = float(cosine_similarity(job_vec, resume_vec)[0][0])
-                raw_sim = max(0.0, min(1.0, raw_sim))
-                k = 30.0
-                sim = 1.0 - math.exp(-k * raw_sim)
-                try:
-                    resume_skills = set(self.extractor.extract_skills(resumes[i][1]))
-                except Exception:
-                    resume_skills = set()
-
-                overlap = len(job_skills.intersection(resume_skills))
-                job_skill_count = max(1, len(job_skills))
-                skill_overlap_ratio = overlap / job_skill_count
-
-                if skill_overlap_ratio == 0:
-                    if len(job_skills) == 0:
-                        final = float(sim)
-                    else:
-                        final = float(sim) * 0.25
-                else:
-                    final = float(sim) * (0.6 + 0.4 * skill_overlap_ratio)
-
-                scores.append((rid, max(0.0, min(1.0, final))))
-            return sorted(scores, key=lambda x: x[1], reverse=True)
-        except Exception:
-            return [(rid, 0.0) for rid in ids]
+        scores = []
+        for rid, resume_text in resumes:
+            score = self.compute_similarity(job_text, resume_text)
+            scores.append((rid, score))
+        return sorted(scores, key=lambda x: x[1], reverse=True)
 
     def rank_candidates(
         self,

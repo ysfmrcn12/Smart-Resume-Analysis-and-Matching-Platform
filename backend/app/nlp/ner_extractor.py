@@ -1,6 +1,7 @@
 """NER-based extraction of skills and experience from resumes using spaCy."""
-from typing import Dict, List, Set
+import os
 import re
+from typing import Dict, List
 
 
 class NERExtractor:
@@ -11,6 +12,7 @@ class NERExtractor:
     PERSON_LABEL = 'PERSON'
     DATE_LABEL = 'DATE'
     GPE_LABEL = 'GPE'
+    SKILL_LABEL = 'SKILL'
     WORK_OF_ART = 'WORK_OF_ART'
 
     # Common skill section headers
@@ -26,8 +28,10 @@ class NERExtractor:
         'career', 'work history', 'employment history'
     ]
 
-    def __init__(self):
+    def __init__(self, model_name: str = None):
         self._nlp = None
+        # Allows loading a fine-tuned spaCy model from disk or package name.
+        self.model_name = model_name or os.getenv('NER_MODEL_PATH', 'en_core_web_sm')
 
     @property
     def nlp(self):
@@ -35,9 +39,11 @@ class NERExtractor:
         if self._nlp is None:
             try:
                 import spacy
-                self._nlp = spacy.load('en_core_web_sm')
+                self._nlp = spacy.load(self.model_name)
             except OSError:
-                # Download model if not present
+                if self.model_name != 'en_core_web_sm':
+                    raise
+                # Download default model if not present
                 import spacy
                 from spacy.cli import download
                 download('en_core_web_sm')
@@ -64,6 +70,8 @@ class NERExtractor:
                 entities['dates'].append(ent.text.strip())
             elif ent.label_ == self.GPE_LABEL:
                 entities['locations'].append(ent.text.strip())
+            elif ent.label_ == self.SKILL_LABEL:
+                entities['skills'].append(ent.text.strip().lower())
 
         # Deduplicate
         for key in entities:

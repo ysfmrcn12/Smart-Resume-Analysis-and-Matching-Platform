@@ -1,5 +1,4 @@
 """Unit tests for NLP components."""
-import pytest
 from app.nlp.preprocessing import TextPreprocessor
 from app.nlp.matching_engine import MatchingEngine
 
@@ -56,3 +55,16 @@ class TestMatchingEngine:
         engine = MatchingEngine()
         assert engine.compute_similarity("", "something") == 0.0
         assert engine.compute_similarity("something", "") == 0.0
+
+    def test_explain_score_contains_breakdown(self):
+        engine = MatchingEngine()
+        job = "Python backend engineer with Flask, PostgreSQL, and Docker experience"
+        resume = "Backend developer with Python, Flask APIs, Docker and SQL skills"
+        report = engine.explain_score(job, resume)
+
+        assert "final_score" in report
+        assert "weights" in report
+        assert "skills" in report
+        assert "tfidf" in report
+        assert 0.0 <= report["final_score"] <= 1.0
+        assert report["skills"]["matched_skill_count"] >= 1

@@ -79,3 +79,22 @@ def compute_similarity():
     resume_text = data.get('resume_text', '')
     score = matching_engine.compute_similarity(job_text, resume_text)
     return jsonify({'similarity_score': round(score, 4)})
+
+
+@nlp_bp.route('/similarity/report', methods=['POST'])
+def compute_similarity_report():
+    """
+    Compute detailed explainable similarity report for one pair.
+
+    POST body: { "job_text": "...", "resume_text": "..." }
+    """
+    data = request.get_json() or {}
+    job_text = data.get('job_text', '')
+    resume_text = data.get('resume_text', '')
+    report = matching_engine.explain_score(job_text, resume_text)
+    report['final_score'] = round(float(report.get('final_score', 0.0)), 4)
+    report['base_score_before_skill_adjustment'] = round(
+        float(report.get('base_score_before_skill_adjustment', 0.0)),
+        4,
+    )
+    return jsonify(report)

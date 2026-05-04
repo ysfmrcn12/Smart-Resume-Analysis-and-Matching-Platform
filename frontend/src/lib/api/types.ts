@@ -21,6 +21,34 @@ export type Application = {
   created_at: string | null;
 };
 
+export type ScoringReport = {
+  final_score_percent: number;
+  base_score_percent: number;
+  weights: {
+    tfidf?: number;
+    semantic?: number;
+  };
+  tfidf_raw: number;
+  tfidf_percent: number;
+  semantic_enabled: boolean;
+  semantic_used: boolean;
+  semantic_percent: number | null;
+  skill_overlap_ratio: number;
+  skill_multiplier: number;
+};
+
+export type HighlightReport = {
+  resume_text: string;
+  matching_skills: Record<string, Array<[number, number]>>;
+  matching_keywords: Record<string, Array<[number, number]>>;
+  matched_count: number;
+  job_skill_count: number;
+  matched_skills: string[];
+  lexical_overlap_keywords: string[];
+  sections: Record<string, string>;
+  scoring_report: ScoringReport;
+};
+
 export type RankedApplication = Application & {
   // kept for readability; `compatibility_score` is already part of `Application`
   compatibility_score: number;

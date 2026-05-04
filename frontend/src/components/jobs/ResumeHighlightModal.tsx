@@ -1,13 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-interface HighlightData {
-  resume_text: string;
-  matching_skills: Record<string, Array<[number, number]>>;
-  matched_count: number;
-  job_skill_count: number;
-}
+import { getApplicationHighlightReport } from "@/lib/api/applications";
+import type { HighlightReport } from "@/lib/api/types";
 
 export default function ResumeHighlightModal({
   isOpen,
@@ -24,7 +19,7 @@ export default function ResumeHighlightModal({
   jobRequirements: string[];
   score: number;
 }) {
-  const [data, setData] = useState<HighlightData | null>(null);
+  const [data, setData] = useState<HighlightReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,12 +36,8 @@ export default function ResumeHighlightModal({
     setLoading(true);
     setError(null);
 
-    fetch(`/api/applications/${applicationId}/highlights`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load highlights");
-        return res.json();
-      })
-      .then((data: HighlightData) => {
+    getApplicationHighlightReport(applicationId)
+      .then((data) => {
         setData(data);
         setLoading(false);
       })
@@ -137,7 +128,7 @@ export default function ResumeHighlightModal({
 
             {/* Resume */}
             <div className="flex flex-col gap-3">
-              <h3 className="font-semibold text-zinc-900">Resume (Highlighted Skills)</h3>
+              <h3 className="font-semibold text-zinc-900">Resume (Highlighted Keywords)</h3>
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="text-sm text-zinc-600">Loading resume...</div>
@@ -150,12 +141,13 @@ export default function ResumeHighlightModal({
                 <div className="whitespace-pre-wrap text-sm text-zinc-800">
                   <HighlightedText
                     text={data.resume_text}
-                    matchingSkills={data.matching_skills}
+                    matchingSkills={data.matching_keywords}
                   />
                 </div>
               ) : null}
             </div>
           </div>
+          {data ? <ScoringReportCard data={data} /> : null}
         </div>
 
         {/* Footer */}
@@ -180,6 +172,92 @@ export default function ResumeHighlightModal({
   );
 }
 
+function ScoringReportCard({ data }: { data: HighlightReport }) {
+  const r = data.scoring_report;
+  return (
+    <div className="border-t border-zinc-200 px-6 py-5">
+      <h3 className="text-base font-semibold text-zinc-900">How this score was obtained</h3>
+      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
+          <div className="font-semibold text-zinc-900">Final Score</div>
+          <div className="mt-1">{r.final_score_percent.toFixed(2)}%</div>
+          <div className="mt-2 text-xs text-zinc-600">
+            Base score {r.base_score_percent.toFixed(2)}% x skill multiplier {r.skill_multiplier.toFixed(2)}
+          </div>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
+          <div className="font-semibold text-zinc-900">TF-IDF Component</div>
+          <div className="mt-1">
+            {r.tfidf_percent.toFixed(2)}% (raw cosine: {r.tfidf_raw.toFixed(4)})
+          </div>
+          <div className="mt-2 text-xs text-zinc-600">
+            Weight in final base score: {((r.weights.tfidf ?? 1) * 100).toFixed(0)}%
+          </div>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
+          <div className="font-semibold text-zinc-900">Semantic Model Component</div>
+          <div className="mt-1">
+            {r.semantic_used && r.semantic_percent !== null
+              ? `${r.semantic_percent.toFixed(2)}%`
+              : r.semantic_enabled
+                ? "Enabled but no score produced for this resume"
+                : "Not enabled (TF-IDF-only mode)"}
+          </div>
+          <div className="mt-2 text-xs text-zinc-600">
+            Weight in final base score: {((r.weights.semantic ?? 0) * 100).toFixed(0)}%
+          </div>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
+          <div className="font-semibold text-zinc-900">Skill Alignment</div>
+          <div className="mt-1">
+            {(r.skill_overlap_ratio * 100).toFixed(2)}% overlap ({data.matched_count}/{data.job_skill_count})
+          </div>
+          <div className="mt-2 text-xs text-zinc-600">
+            Multiplier applied to base score: {r.skill_multiplier.toFixed(2)}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="rounded-lg border border-zinc-200 bg-white p-3">
+          <div className="text-sm font-semibold text-zinc-900">Matched skills</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {data.matched_skills.length ? (
+              data.matched_skills.map((skill) => (
+                <span
+                  key={skill}
+                  className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800"
+                >
+                  {skill}
+                </span>
+              ))
+            ) : (
+              <span className="text-xs text-zinc-500">No direct skill matches detected.</span>
+            )}
+          </div>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-3">
+          <div className="text-sm font-semibold text-zinc-900">Other matched keywords</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {data.lexical_overlap_keywords.length ? (
+              data.lexical_overlap_keywords.map((keyword) => (
+                <span
+                  key={keyword}
+                  className="rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-800"
+                >
+                  {keyword}
+                </span>
+              ))
+            ) : (
+              <span className="text-xs text-zinc-500">No lexical overlap keywords detected.</span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HighlightedText({
   text,
   matchingSkills,
@@ -189,14 +267,12 @@ function HighlightedText({
 }) {
   // Build a set of all position ranges to highlight
   const highlightRanges = new Set<number>();
-  const positionToSkill: Record<number, string> = {};
 
   Object.entries(matchingSkills).forEach(([skill, positions]) => {
     positions.forEach(([start, end]) => {
       for (let i = start; i < end; i++) {
         highlightRanges.add(i);
       }
-      positionToSkill[start] = skill;
     });
   });
 
@@ -205,7 +281,7 @@ function HighlightedText({
   const sortedPositions = Array.from(highlightRanges).sort((a, b) => a - b);
 
   // Group consecutive positions into ranges
-  let rangeStart = null;
+  let rangeStart: number | null = null;
   let prevPos = -2;
 
   for (const pos of sortedPositions) {

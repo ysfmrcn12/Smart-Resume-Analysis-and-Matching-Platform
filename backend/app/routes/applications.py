@@ -1,5 +1,6 @@
 """Application/candidate management API endpoints."""
 import os
+import re
 import uuid
 import shutil
 from flask import Blueprint, request, jsonify, current_app, send_file
@@ -9,11 +10,46 @@ from app.models import JobPosting, Application
 from app.nlp.resume_parser import ResumeParser
 from app.nlp.ner_extractor import NERExtractor
 from app.nlp.matching_engine import MatchingEngine
+from app.nlp.preprocessing import TextPreprocessor
+from app.nlp.section_classifier import SectionClassifier
 
 applications_bp = Blueprint('applications', __name__)
 resume_parser = ResumeParser()
 ner_extractor = NERExtractor()
 matching_engine = MatchingEngine()
+preprocessor = TextPreprocessor(lowercase=True, remove_stop_words=True)
+section_classifier = SectionClassifier()
+
+
+def _find_term_positions(text: str, term: str):
+    """Find case-insensitive term occurrences with start/end offsets."""
+    if not text or not term:
+        return []
+    escaped = re.escape(term.strip())
+    if not escaped:
+        return []
+
+    # Use word boundaries for single token terms; phrase terms can match naturally.
+    pattern = rf"\b{escaped}\b" if " " not in term.strip() else escaped
+    matches = re.finditer(pattern, text, flags=re.IGNORECASE)
+    positions = []
+    for m in matches:
+        positions.append([m.start(), m.end()])
+    return positions
+
+
+def _extract_keyword_overlap(job_text: str, resume_text: str, max_terms: int = 20):
+    """Find lexical overlaps between job and resume after preprocessing."""
+    job_tokens = {
+        t for t in preprocessor.tokenize(job_text)
+        if len(t) >= 3 and not t.isdigit()
+    }
+    resume_tokens = {
+        t for t in preprocessor.tokenize(resume_text)
+        if len(t) >= 3 and not t.isdigit()
+    }
+    overlap = sorted(job_tokens.intersection(resume_tokens))
+    return overlap[:max_terms]
 
 
 def get_upload_folder():
@@ -162,48 +198,59 @@ def delete_application(app_id):
 
 @applications_bp.route('/<int:app_id>/highlights', methods=['GET'])
 def get_highlights(app_id):
-    """Get resume text with matching skills highlighted."""
+    """Get resume text with explainable score report and keyword highlights."""
     application = Application.query.get_or_404(app_id)
     job = JobPosting.query.get_or_404(application.job_posting_id)
 
-    # Extract skills from job requirements
     job_text = f"{job.title} {job.description} {' '.join(job.requirements or [])}"
-    job_skills = set(ner_extractor.extract_skills(job_text))
-
-    # Get already-extracted resume skills
-    resume_skills = set(s.strip() for s in (application.extracted_skills or []) if s.strip())
-
-    # Find matching skills (case-insensitive)
-    matching_skills = []
-    for skill in resume_skills:
-        if any(skill.lower() == js.lower() for js in job_skills):
-            matching_skills.append(skill)
-
-    # Find all positions of matching skills in resume text
     resume_text = application.resume_text or ""
-    skill_positions = {}
+    score_report = matching_engine.explain_score(job_text, resume_text)
 
-    for skill in matching_skills:
-        positions = []
-        search_text = resume_text.lower()
-        skill_lower = skill.lower()
-        start = 0
+    matched_skills = score_report.get("skills", {}).get("matched_skills", [])
+    lexical_overlap = _extract_keyword_overlap(job_text, resume_text, max_terms=25)
 
-        while True:
-            pos = search_text.find(skill_lower, start)
-            if pos == -1:
-                break
-            positions.append([pos, pos + len(skill_lower)])
-            start = pos + 1
-
+    matching_skill_positions = {}
+    for skill in matched_skills:
+        positions = _find_term_positions(resume_text, skill)
         if positions:
-            skill_positions[skill] = positions
+            matching_skill_positions[skill] = positions
+
+    matching_keyword_positions = dict(matching_skill_positions)
+    for keyword in lexical_overlap:
+        if keyword in matching_keyword_positions:
+            continue
+        positions = _find_term_positions(resume_text, keyword)
+        if positions:
+            matching_keyword_positions[keyword] = positions
+
+    sections = section_classifier.extract_sections(resume_text)
+    scoring_breakdown = {
+        "final_score_percent": round(float(score_report.get("final_score", 0.0)) * 100, 2),
+        "base_score_percent": round(float(score_report.get("base_score_before_skill_adjustment", 0.0)) * 100, 2),
+        "weights": score_report.get("weights", {}),
+        "tfidf_raw": round(float(score_report.get("tfidf", {}).get("raw_similarity", 0.0)), 4),
+        "tfidf_percent": round(float(score_report.get("tfidf", {}).get("calibrated_similarity", 0.0)) * 100, 2),
+        "semantic_enabled": bool(score_report.get("semantic", {}).get("enabled", False)),
+        "semantic_used": bool(score_report.get("semantic", {}).get("used", False)),
+        "semantic_percent": (
+            round(float(score_report.get("semantic", {}).get("score", 0.0)) * 100, 2)
+            if score_report.get("semantic", {}).get("score") is not None
+            else None
+        ),
+        "skill_overlap_ratio": round(float(score_report.get("skills", {}).get("skill_overlap_ratio", 0.0)), 4),
+        "skill_multiplier": round(float(score_report.get("skills", {}).get("skill_multiplier", 1.0)), 4),
+    }
 
     return jsonify({
         'resume_text': resume_text,
-        'matching_skills': skill_positions,
-        'matched_count': len(matching_skills),
-        'job_skill_count': len(job_skills),
+        'matching_skills': matching_skill_positions,
+        'matching_keywords': matching_keyword_positions,
+        'matched_count': len(matched_skills),
+        'job_skill_count': int(score_report.get("skills", {}).get("job_skill_count", 0)),
+        'matched_skills': matched_skills,
+        'lexical_overlap_keywords': lexical_overlap,
+        'sections': sections,
+        'scoring_report': scoring_breakdown,
     })
 
 
