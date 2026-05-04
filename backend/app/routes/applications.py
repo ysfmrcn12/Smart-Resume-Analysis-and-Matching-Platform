@@ -258,13 +258,6 @@ def get_highlights(app_id):
         "weights": score_report.get("weights", {}),
         "tfidf_raw": round(float(score_report.get("tfidf", {}).get("raw_similarity", 0.0)), 4),
         "tfidf_percent": round(float(score_report.get("tfidf", {}).get("calibrated_similarity", 0.0)) * 100, 2),
-        "semantic_enabled": bool(score_report.get("semantic", {}).get("enabled", False)),
-        "semantic_used": bool(score_report.get("semantic", {}).get("used", False)),
-        "semantic_percent": (
-            round(float(score_report.get("semantic", {}).get("score", 0.0)) * 100, 2)
-            if score_report.get("semantic", {}).get("score") is not None
-            else None
-        ),
         "skill_overlap_ratio": round(float(score_report.get("skills", {}).get("skill_overlap_ratio", 0.0)), 4),
         "skill_multiplier": round(float(score_report.get("skills", {}).get("skill_multiplier", 1.0)), 4),
     }

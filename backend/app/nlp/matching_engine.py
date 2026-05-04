@@ -1,14 +1,12 @@
 """Matching engine for explainable job-resume relevance scoring."""
 import math
-import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from app.nlp.preprocessing import TextPreprocessor
 from app.nlp.ner_extractor import NERExtractor
-from app.nlp.semantic_ranker import SemanticRanker
 
 
 class MatchingEngine:
@@ -32,13 +30,6 @@ class MatchingEngine:
         )
         self.preprocessor = TextPreprocessor(lowercase=True, remove_stop_words=False)
         self.extractor = NERExtractor()
-        self.semantic_ranker = SemanticRanker()
-        self.semantic_weight = self._clamp_float(
-            float(os.getenv("SEMANTIC_RANKER_WEIGHT", "0.6")),
-            min_value=0.0,
-            max_value=1.0,
-        )
-
     @staticmethod
     def _clamp_float(value: float, min_value: float = 0.0, max_value: float = 1.0) -> float:
         """Clamp float value to a range."""
@@ -113,15 +104,14 @@ class MatchingEngine:
         """
         Return a detailed scoring report for one job/resume pair.
 
-        Keeps TF-IDF as a first-class baseline while optionally blending an
-        externally fine-tuned semantic cross-encoder score when configured.
+        Uses TF-IDF as the core textual relevance signal and combines it with
+        skill overlap/negation logic for the final score.
         """
         empty_report = {
             "final_score": 0.0,
             "base_score_before_skill_adjustment": 0.0,
-            "weights": {"tfidf": 1.0, "semantic": 0.0},
+            "weights": {"tfidf": 1.0},
             "tfidf": {"raw_similarity": 0.0, "calibrated_similarity": 0.0},
-            "semantic": {"enabled": False, "used": False, "score": None},
             "skills": {
                 "job_skills": [],
                 "resume_skills": [],
@@ -149,22 +139,8 @@ class MatchingEngine:
             raw_tfidf = 0.0
             tfidf_calibrated = 0.0
 
-        semantic_score: Optional[float] = None
-        semantic_enabled = False
-        semantic_used = False
-        if self.semantic_ranker:
-            semantic_enabled = self.semantic_ranker.enabled
-            semantic_score = self.semantic_ranker.score_pair(job_text, resume_text)
-            semantic_used = semantic_score is not None
-
-        if semantic_used and semantic_score is not None:
-            semantic_weight = self.semantic_weight
-            tfidf_weight = 1.0 - semantic_weight
-            base_score = (tfidf_weight * tfidf_calibrated) + (semantic_weight * semantic_score)
-        else:
-            semantic_weight = 0.0
-            tfidf_weight = 1.0
-            base_score = tfidf_calibrated
+        tfidf_weight = 1.0
+        base_score = tfidf_calibrated
 
         skill_metrics = self._compute_skill_metrics(job_text, resume_text)
         final = self._clamp_float(base_score * skill_metrics["skill_multiplier"])
@@ -174,17 +150,10 @@ class MatchingEngine:
             "base_score_before_skill_adjustment": self._clamp_float(base_score),
             "weights": {
                 "tfidf": tfidf_weight,
-                "semantic": semantic_weight,
             },
             "tfidf": {
                 "raw_similarity": self._clamp_float(raw_tfidf),
                 "calibrated_similarity": self._clamp_float(tfidf_calibrated),
-            },
-            "semantic": {
-                "enabled": semantic_enabled,
-                "used": semantic_used,
-                "score": self._clamp_float(semantic_score) if semantic_score is not None else None,
-                "model": self.semantic_ranker.info() if self.semantic_ranker else {},
             },
             "skills": skill_metrics,
         }

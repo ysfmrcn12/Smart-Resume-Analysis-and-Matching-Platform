@@ -196,19 +196,6 @@ function ScoringReportCard({ data }: { data: HighlightReport }) {
           </div>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
-          <div className="font-semibold text-zinc-900">Semantic Model Component</div>
-          <div className="mt-1">
-            {r.semantic_used && r.semantic_percent !== null
-              ? `${r.semantic_percent.toFixed(2)}%`
-              : r.semantic_enabled
-                ? "Enabled but no score produced for this resume"
-                : "Not enabled (TF-IDF-only mode)"}
-          </div>
-          <div className="mt-2 text-xs text-zinc-600">
-            Weight in final base score: {((r.weights.semantic ?? 0) * 100).toFixed(0)}%
-          </div>
-        </div>
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
           <div className="font-semibold text-zinc-900">Skill Alignment</div>
           <div className="mt-1">
             {(r.skill_overlap_ratio * 100).toFixed(2)}% overlap ({data.matched_count}/{data.job_skill_count})

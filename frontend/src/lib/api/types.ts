@@ -26,13 +26,9 @@ export type ScoringReport = {
   base_score_percent: number;
   weights: {
     tfidf?: number;
-    semantic?: number;
   };
   tfidf_raw: number;
   tfidf_percent: number;
-  semantic_enabled: boolean;
-  semantic_used: boolean;
-  semantic_percent: number | null;
   skill_overlap_ratio: number;
   skill_multiplier: number;
 };
