@@ -111,6 +111,20 @@ export default function CreateJobForm({
                   }
                 }
               }}
+              onPaste={(e) => {
+                const pasteData = e.clipboardData.getData("text");
+                if (pasteData.includes("\n")) {
+                  e.preventDefault();
+                  const splitReqs = pasteData
+                    .split("\n")
+                    .map((r) => r.replace(/^[•*-]\s*/, "").trim())
+                    .filter(Boolean);
+                  if (splitReqs.length > 0) {
+                    setRequirements((prev) => [...prev, ...splitReqs]);
+                    setRequirementInput("");
+                  }
+                }
+              }}
               placeholder="Add a requirement and press Enter"
               className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
             />
@@ -191,4 +205,3 @@ export default function CreateJobForm({
     </form>
   );
 }
-

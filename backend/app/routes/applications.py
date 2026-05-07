@@ -52,6 +52,14 @@ def _extract_keyword_overlap(job_text: str, resume_text: str, max_terms: int = 2
     return overlap[:max_terms]
 
 
+def _build_job_text(job) -> str:
+    """Build job text and give extra weight to the job title by repeating it."""
+    # Boost the job title weight in TF-IDF by repeating it 5 times
+    title_boost = f"{job.title} " * 5
+    requirements = ' '.join(job.requirements or [])
+    return f"{title_boost}{job.description} {requirements}".strip()
+
+
 def get_upload_folder():
     """Get or create upload folder."""
     folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
@@ -99,7 +107,7 @@ def upload_resume(job_id):
         file.save(filepath)
         parsed = resume_parser.parse(filepath)
         resume_text = parsed['text']
-        contact = parsed['contact_info']
+        contact = parsed.get('contact_info') or {}
 
         # If extraction/OCR still yields no meaningful text, avoid silently
         # creating a "0.00%" application.
@@ -115,7 +123,7 @@ def upload_resume(job_id):
         extracted = ner_extractor.extract_all(resume_text)
 
         # Compute compatibility score
-        job_text = f"{job.title} {job.description} {' '.join(job.requirements or [])}"
+        job_text = _build_job_text(job)
         score = matching_engine.compute_similarity(job_text, resume_text)
 
         application = Application(
@@ -146,6 +154,80 @@ def upload_resume(job_id):
                 os.remove(filepath)
             except OSError:
                 pass
+
+
+@applications_bp.route('/job/<int:job_id>/upload/batch', methods=['POST'])
+def batch_upload_resumes(job_id):
+    """
+    Upload multiple resumes for a job posting at once.
+    """
+    job = JobPosting.query.get_or_404(job_id)
+
+    # getlist() retrieves all files sent under the same form key
+    files = request.files.getlist('resume') or request.files.getlist('file')
+    if not files or all(f.filename == '' for f in files):
+        return jsonify({'error': 'No files provided'}), 400
+
+    upload_folder = get_upload_folder()
+    job_text = _build_job_text(job)
+    
+    results = []
+    errors = []
+
+    for file in files:
+        if file.filename == '':
+            continue
+
+        if not ResumeParser.is_supported(file.filename):
+            errors.append({'filename': file.filename, 'error': 'Unsupported format. Use PDF, DOCX, or TXT.'})
+            continue
+
+        ext = os.path.splitext(file.filename)[1].lower()
+        safe_filename = f"{uuid.uuid4().hex}{ext}"
+        filepath = os.path.join(upload_folder, safe_filename)
+
+        try:
+            file.save(filepath)
+            parsed = resume_parser.parse(filepath)
+            resume_text = parsed['text']
+            contact = parsed.get('contact_info') or {}
+
+            if not resume_text or not resume_text.strip():
+                errors.append({'filename': file.filename, 'error': 'Could not extract any text.'})
+                continue
+
+            # NER extraction
+            extracted = ner_extractor.extract_all(resume_text)
+            score = matching_engine.compute_similarity(job_text, resume_text)
+
+            application = Application(
+                job_posting_id=job_id,
+                candidate_name=contact.get('email', 'Unknown'), # Fallback to email for bulk uploads
+                candidate_email=contact.get('email', ''),
+                resume_text=resume_text,
+                resume_filename=file.filename,
+                compatibility_score=score,
+                extracted_skills=extracted['skills'],
+                extracted_experience=extracted['experience'],
+            )
+            db.session.add(application)
+            db.session.commit()
+
+            permanent_filepath = os.path.join(upload_folder, f"app_{application.id}{ext}")
+            shutil.copy2(filepath, permanent_filepath)
+
+            results.append(application.to_dict())
+        except Exception as e:
+            db.session.rollback()
+            errors.append({'filename': file.filename, 'error': f'Processing failed: {str(e)}'})
+        finally:
+            if os.path.exists(filepath):
+                try:
+                    os.remove(filepath)
+                except OSError:
+                    pass
+
+    return jsonify({'results': results, 'errors': errors}), 201
 
 
 @applications_bp.route('/<int:app_id>', methods=['GET'])
@@ -201,7 +283,7 @@ def get_highlights(app_id):
     application = Application.query.get_or_404(app_id)
     job = JobPosting.query.get_or_404(application.job_posting_id)
 
-    job_text = f"{job.title} {job.description} {' '.join(job.requirements or [])}"
+    job_text = _build_job_text(job)
     resume_text = application.resume_text or ""
     score_report = matching_engine.explain_score(job_text, resume_text)
 
@@ -262,7 +344,7 @@ def rank_applicants(job_id):
         for a in applications
     ]
     ranked = matching_engine.rank_candidates(
-        f"{job.title} {job.description} {' '.join(job.requirements or [])}",
+        _build_job_text(job),
         candidates
     )
 

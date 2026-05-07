@@ -365,6 +365,8 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
           applications.find((a) => a.id === selectedAppId)?.candidate_name ||
           "Candidate"
         }
+        jobTitle={job?.title || ""}
+        jobDescription={job?.description || ""}
         jobRequirements={Array.isArray(job?.requirements) ? job.requirements : []}
         score={applications.find((a) => a.id === selectedAppId)?.compatibility_score || 0}
       />

@@ -1,6 +1,8 @@
 """NER-based extraction of skills and experience from resumes using spaCy."""
 import os
 import re
+import json
+from pathlib import Path
 from typing import Dict, List
 
 
@@ -30,6 +32,7 @@ class NERExtractor:
 
     def __init__(self, model_name: str = None):
         self._nlp = None
+        self._matcher = None
         # Allows loading a fine-tuned spaCy model from disk or package name.
         self.model_name = model_name or os.getenv('NER_MODEL_PATH', 'en_core_web_sm')
 
@@ -48,6 +51,16 @@ class NERExtractor:
                 from spacy.cli import download
                 download('en_core_web_sm')
                 self._nlp = spacy.load('en_core_web_sm')
+                
+            from spacy.matcher import PhraseMatcher
+            self._matcher = PhraseMatcher(self._nlp.vocab, attr="LOWER")
+            db_path = Path(__file__).resolve().parent.parent.parent / "data" / "skills_db.json"
+            if db_path.exists():
+                with open(db_path, "r", encoding="utf-8") as f:
+                    skill_list = json.load(f)
+                # Efficiently load thousands of exact-match terms into the matcher
+                patterns = list(self._nlp.tokenizer.pipe(skill_list))
+                self._matcher.add("DATABASE_SKILLS", patterns)
         return self._nlp
 
     def extract_entities(self, text: str) -> Dict[str, List[str]]:
@@ -115,33 +128,19 @@ class NERExtractor:
         Extract skills from resume using NER and pattern matching.
 
         Combines:
-        - Entities from skill section
         - Common tech terms (programming languages, tools)
-        - Noun chunks in skill section
+        - Custom NER Model
+        - Knowledge Base Matching
         """
         skills = set()
 
-        # Extract skill section
-        skill_section = self._extract_section_content(text, self.SKILL_HEADERS)
-        if skill_section:
-            doc = self.nlp(skill_section[:5000])
-            # Add noun chunks and significant terms
-            for chunk in doc.noun_chunks:
-                if len(chunk.text) > 2 and len(chunk.text) < 50:
-                    if not self._is_negated(skill_section, chunk.start_char):
-                        skills.add(chunk.text.strip().lower())
-            for token in doc:
-                if token.pos_ in ('NOUN', 'PROPN') and len(token.text) > 2:
-                    if not self._is_negated(skill_section, token.idx): # Using idx for rough position
-                        skills.add(token.text.strip().lower())
-
         # Common tech skills pattern
         tech_patterns = [
-            r'\b(python|java|javascript|typescript|c\+\+|c#|ruby|go|rust|php|swift|kotlin)\b',
-            r'\b(react|angular|vue|node\.?js|django|flask|spring|express)\b',
-            r'\b(sql|mysql|postgresql|mongodb|redis|aws|docker|kubernetes|git)\b',
+            r'\b(python|java|javascript|typescript|c\+\+|c#|ruby|go|rust|php|swift|kotlin|ios|android)\b',
+            r'\b(react|angular|vue|node\.?js|django|flask|spring|express|uikit|swiftui)\b',
+            r'\b(sql|mysql|postgresql|mongodb|redis|aws|docker|kubernetes|git|jenkins|ci/cd)\b',
             r'\b(machine learning|nlp|data science|tensorflow|pytorch|pandas|numpy)\b',
-            r'\b(html|css|rest api|graphql|agile|scrum|jira)\b',
+            r'\b(html|css|rest api|restful|json|graphql|agile|scrum|jira)\b',
         ]
         full_text = text.lower()
         for pattern in tech_patterns:
@@ -157,6 +156,15 @@ class NERExtractor:
         
         # CRITICAL: Use the Custom NER model we trained to find skills in the whole text!
         doc_full = self.nlp(text[:100000])
+        
+        # Check against the massive Knowledge Base
+        if self._matcher:
+            matches = self._matcher(doc_full)
+            for match_id, start, end in matches:
+                span = doc_full[start:end]
+                if not self._is_negated(text, span.start_char):
+                    skills.add(span.text.strip().lower())
+
         for ent in doc_full.ents:
             if ent.label_ == self.SKILL_LABEL:
                 if not self._is_negated(text, ent.start_char):
@@ -166,7 +174,11 @@ class NERExtractor:
         normalized = set()
         
         # Filter out generic words that the base model sometimes grabs by mistake
-        generic_words = {'hands', 'managing', 'working', 'using', 'familiar', 'data', 'big', 'machine', 'learning', 'skill', 'skills'}
+        generic_words = {
+            'hands', 'managing', 'working', 'using', 'familiar', 'data', 'big', 'machine', 'learning', 'skill', 'skills',
+            'plus', 'party', 'coding', 'development', 'developer', 'design', 'integration', 'application', 'business', 
+            'analytical', 'quality', 'analysis', 'solutions', 'tool', 'tools', 'environment', 'team', 'degree', 'ms', 'bs'
+        }
         noise_keywords = {'experience', 'experienced', 'knowledge', 'understanding', 'proficiency', 'familiarity', 'ability', 'years'}
         
         for s in skills:
@@ -195,7 +207,7 @@ class NERExtractor:
 
         # 1. Look for explicit mentions (e.g., "5 years of experience", "10+ years")
         patterns = [
-            r'(\d+(?:\.\d+)?)\+?\s*years?(?:\s*of)?\s*experience',
+            r'(\d+(?:\.\d+)?)\+?\s*years?(?:\s*of)?(?:[a-zA-Z\s]{0,20})?experience',
             r'experience.*?(?:of\s*)?(\d+(?:\.\d+)?)\+?\s*years?'
         ]
         for pattern in patterns:

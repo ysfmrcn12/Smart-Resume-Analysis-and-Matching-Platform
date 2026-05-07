@@ -40,7 +40,7 @@ class MatchingEngine:
         return self.preprocessor.preprocess_for_tfidf(text)
 
     @staticmethod
-    def _calibrate_similarity(raw_similarity: float, k: float = 10.0) -> float:
+    def _calibrate_similarity(raw_similarity: float, k: float = 8.0) -> float:
         """
         Calibrate cosine similarity into a human-friendlier range.
 
@@ -76,12 +76,12 @@ class MatchingEngine:
             # If we could not extract job skills, avoid an arbitrary penalty
             skill_multiplier = 1.0
         elif skill_overlap_ratio == 0:
-            skill_multiplier = 0.5
+            skill_multiplier = 0.7  # Softer penalty if NER misses skills
         else:
-            # Base multiplier from 0.5 to 1.0 based on overlap
-            skill_multiplier = 0.5 + 0.5 * skill_overlap_ratio
-            # Add a slight bonus for matching multiple skills
-            skill_multiplier += min(0.2, overlap * 0.05)
+            # Base multiplier from 0.7 to 1.1 based on overlap
+            skill_multiplier = 0.7 + (0.4 * skill_overlap_ratio)
+            # Add a slight bonus for exact matches
+            skill_multiplier += min(0.15, overlap * 0.03)
 
         return {
             "job_skills": sorted(job_skills),
@@ -107,12 +107,11 @@ class MatchingEngine:
                 # Bonus for meeting or exceeding experience
                 exp_multiplier = 1.1
             elif cand_exp == 0:
-                # Penalty if they have no detectable experience but the job requires it
-                exp_multiplier = 0.7
+                # Softer penalty if NER fails to extract dates
+                exp_multiplier = 0.85
             else:
-                # Proportional penalty
                 ratio = cand_exp / req_exp
-                exp_multiplier = 0.7 + (0.3 * ratio)
+                exp_multiplier = 0.85 + (0.25 * ratio)
                 
         return {
             "required_years": req_exp,

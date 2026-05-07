@@ -9,6 +9,8 @@ export default function ResumeHighlightModal({
   onClose,
   applicationId,
   candidateName,
+  jobTitle,
+  jobDescription,
   jobRequirements,
   score,
 }: {
@@ -16,6 +18,8 @@ export default function ResumeHighlightModal({
   onClose: () => void;
   applicationId: number;
   candidateName: string;
+  jobTitle: string;
+  jobDescription: string;
   jobRequirements: string[];
   score: number;
 }) {
@@ -72,6 +76,9 @@ export default function ResumeHighlightModal({
               <h2 className="text-lg font-semibold text-zinc-900">
                 Resume - {candidateName}
               </h2>
+              <p className="mt-1 text-sm font-medium text-zinc-800">
+                Applying for: {jobTitle}
+              </p>
               {data && (
                 <p className="mt-1 text-sm text-zinc-600">
                   {data.matched_count} matching skills out of {data.job_skill_count} required
@@ -112,18 +119,31 @@ export default function ResumeHighlightModal({
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="grid grid-cols-2 gap-6 p-6">
-            {/* Requirements */}
-            <div className="flex flex-col gap-3">
-              <h3 className="font-semibold text-zinc-900">Job Requirements</h3>
-              {Array.isArray(jobRequirements) && jobRequirements.length > 0 ? (
-                <ul className="list-inside list-disc space-y-2 text-sm text-zinc-700">
-                  {jobRequirements.map((req, i) => (
-                    <li key={i}>{req}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-zinc-500">No requirements specified</p>
-              )}
+            {/* Left Column: Description & Requirements */}
+            <div className="flex flex-col gap-6">
+              {/* Description */}
+              <div className="flex flex-col gap-3">
+                <h3 className="font-semibold text-zinc-900">Job Description</h3>
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                  <p className="whitespace-pre-wrap text-sm text-zinc-700">
+                    {jobDescription || "No description provided."}
+                  </p>
+                </div>
+              </div>
+
+              {/* Requirements */}
+              <div className="flex flex-col gap-3">
+                <h3 className="font-semibold text-zinc-900">Job Requirements</h3>
+                {Array.isArray(jobRequirements) && jobRequirements.length > 0 ? (
+                  <ul className="list-inside list-disc space-y-2 text-sm text-zinc-700">
+                    {jobRequirements.map((req, i) => (
+                      <li key={i}>{req}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-zinc-500">No requirements specified</p>
+                )}
+              </div>
             </div>
 
             {/* Resume */}
@@ -141,7 +161,7 @@ export default function ResumeHighlightModal({
                 <div className="whitespace-pre-wrap text-sm text-zinc-800">
                   <HighlightedText
                     text={data.resume_text}
-                    matchingSkills={data.matching_keywords}
+                    keywords={[...data.matched_skills, ...data.lexical_overlap_keywords]}
                   />
                 </div>
               ) : null}
@@ -247,74 +267,38 @@ function ScoringReportCard({ data }: { data: HighlightReport }) {
 
 function HighlightedText({
   text,
-  matchingSkills,
+  keywords,
 }: {
   text: string;
-  matchingSkills: Record<string, Array<[number, number]>>;
+  keywords: string[];
 }) {
-  // Build a set of all position ranges to highlight
-  const highlightRanges = new Set<number>();
+  if (!keywords || keywords.length === 0) return <>{text}</>;
 
-  Object.entries(matchingSkills).forEach(([_skill, positions]) => {
-    positions.forEach(([start, end]) => {
-      for (let i = start; i < end; i++) {
-        highlightRanges.add(i);
-      }
-    });
+  // Sort keywords by length descending so longer phrases match first
+  const sortedKeywords = [...keywords].sort((a, b) => b.length - a.length);
+  const escapedKeywords = sortedKeywords.map((kw) => {
+    let escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (/^\w/.test(kw)) escaped = `\\b${escaped}`;
+    if (/\w$/.test(kw)) escaped = `${escaped}\\b`;
+    return escaped;
   });
+  
+  const regex = new RegExp(`(${escapedKeywords.join("|")})`, "gi");
+  const parts = text.split(regex);
 
-  const elements = [];
-  let currentPos = 0;
-  const sortedPositions = Array.from(highlightRanges).sort((a, b) => a - b);
-
-  // Group consecutive positions into ranges
-  let rangeStart: number | null = null;
-  let prevPos = -2;
-
-  for (const pos of sortedPositions) {
-    if (pos !== prevPos + 1) {
-      if (rangeStart !== null && prevPos !== null) {
-        // End of a range, add non-highlighted text before and highlighted after
-        if (rangeStart > currentPos) {
-          elements.push(
-            <span key={`text-${currentPos}`}>
-              {text.slice(currentPos, rangeStart)}
-            </span>
+  return (
+    <>
+      {parts.map((part, i) => {
+        // Every odd index is a matched keyword because of the single capture group in the regex
+        if (i % 2 === 1) {
+          return (
+            <mark key={i} className="bg-yellow-300 px-0.5 rounded-sm font-medium">
+              {part}
+            </mark>
           );
         }
-        elements.push(
-          <mark key={`highlight-${rangeStart}`} className="bg-yellow-300">
-            {text.slice(rangeStart, prevPos + 1)}
-          </mark>
-        );
-        currentPos = prevPos + 1;
-      }
-      rangeStart = pos;
-    }
-    prevPos = pos;
-  }
-
-  // Handle remaining ranges
-  if (rangeStart !== null && prevPos !== null) {
-    if (rangeStart > currentPos) {
-      elements.push(
-        <span key={`text-${currentPos}`}>{text.slice(currentPos, rangeStart)}</span>
-      );
-    }
-    elements.push(
-      <mark key={`highlight-${rangeStart}`} className="bg-yellow-300">
-        {text.slice(rangeStart, prevPos + 1)}
-      </mark>
-    );
-    currentPos = prevPos + 1;
-  }
-
-  // Add remaining text
-  if (currentPos < text.length) {
-    elements.push(
-      <span key={`text-${currentPos}`}>{text.slice(currentPos)}</span>
-    );
-  }
-
-  return <>{elements}</>;
+        return <span key={i}>{part}</span>;
+      })}
+    </>
+  );
 }

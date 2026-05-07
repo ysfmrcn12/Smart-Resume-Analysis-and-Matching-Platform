@@ -21,6 +21,9 @@ class TextPreprocessor:
         'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have',
         'has', 'had', 'having', 'do', 'does', 'did', 'doing', 'would',
         'could', 'ought', 'i', 'me', 'my', 'myself', 'we', 'our', 'ours',
+        'into', 'onto', 'upon', 'about', 'above', 'below', 'under', 'over',
+        'out', 'through', 'during', 'before', 'after', 'then', 'once', 'here',
+        'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each',
         # Domain-specific noise words to ignore for scoring and highlighting
         'experience', 'experienced', 'skill', 'skills', 'year', 'years', 'knowledge',
         'ability', 'proficient', 'proficiency', 'familiar', 'familiarity', 'working',
