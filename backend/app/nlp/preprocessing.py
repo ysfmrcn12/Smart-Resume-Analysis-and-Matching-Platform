@@ -20,7 +20,11 @@ class TextPreprocessor:
         'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those',
         'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have',
         'has', 'had', 'having', 'do', 'does', 'did', 'doing', 'would',
-        'could', 'ought', 'i', 'me', 'my', 'myself', 'we', 'our', 'ours'
+        'could', 'ought', 'i', 'me', 'my', 'myself', 'we', 'our', 'ours',
+        # Domain-specific noise words to ignore for scoring and highlighting
+        'experience', 'experienced', 'skill', 'skills', 'year', 'years', 'knowledge',
+        'ability', 'proficient', 'proficiency', 'familiar', 'familiarity', 'working',
+        'using', 'required', 'requirements', 'responsibilities', 'responsibility'
     }
 
     def __init__(self, lowercase: bool = True, remove_stop_words: bool = False):

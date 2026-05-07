@@ -19,7 +19,7 @@ class NERExtractor:
     SKILL_HEADERS = [
         'skills', 'technical skills', 'core competencies', 'expertise',
         'technologies', 'tools', 'programming languages', 'key skills',
-        'professional skills', 'summary of skills', 'competencies'
+        'professional skills', 'summary of skills', 'competencies', 'experience'
     ]
 
     # Common experience section headers
@@ -95,6 +95,20 @@ class NERExtractor:
                         rest = rest[:pos]
                 return rest.strip()
         return ''
+        
+    def _is_negated(self, text: str, start_pos: int, window: int = 40) -> bool:
+        """Check if the text immediately preceding the term contains negation keywords."""
+        # Look at the characters just before the skill
+        preceding_text = text[max(0, start_pos - window):start_pos].lower()
+        # Pad with a space so we can match whole words easily
+        preceding_text = re.sub(r'\s+', ' ', preceding_text)
+        preceding_text = " " + preceding_text
+        
+        negation_words = [
+            ' no ', ' not ', ' lack ', ' lacking ', ' without ', 
+            ' bad at ', ' poor ', ' zero ', ' limited ', ' basic ', ' none '
+        ]
+        return any(neg in preceding_text for neg in negation_words)
 
     def extract_skills(self, text: str) -> List[str]:
         """
@@ -114,10 +128,12 @@ class NERExtractor:
             # Add noun chunks and significant terms
             for chunk in doc.noun_chunks:
                 if len(chunk.text) > 2 and len(chunk.text) < 50:
-                    skills.add(chunk.text.strip().lower())
+                    if not self._is_negated(skill_section, chunk.start_char):
+                        skills.add(chunk.text.strip().lower())
             for token in doc:
                 if token.pos_ in ('NOUN', 'PROPN') and len(token.text) > 2:
-                    skills.add(token.text.strip().lower())
+                    if not self._is_negated(skill_section, token.idx): # Using idx for rough position
+                        skills.add(token.text.strip().lower())
 
         # Common tech skills pattern
         tech_patterns = [
@@ -129,22 +145,81 @@ class NERExtractor:
         ]
         full_text = text.lower()
         for pattern in tech_patterns:
-            matches = re.findall(pattern, full_text, re.IGNORECASE)
-            skills.update(matches)
+            # Use finditer instead of findall so we know EXACTLY where the word is
+            for match in re.finditer(pattern, full_text, re.IGNORECASE):
+                if not self._is_negated(full_text, match.start()):
+                    skills.add(match.group(0))
 
         # Add ORG entities (companies often indicate domain skills)
         entities = self.extract_entities(text)
         # Company names can help domain-match, but normalize to lowercase for intersections.
         skills.update(s.strip().lower() for s in entities['organizations'][:5])  # Limit
+        
+        # CRITICAL: Use the Custom NER model we trained to find skills in the whole text!
+        doc_full = self.nlp(text[:100000])
+        for ent in doc_full.ents:
+            if ent.label_ == self.SKILL_LABEL:
+                if not self._is_negated(text, ent.start_char):
+                    skills.add(ent.text.strip().lower())
 
         # Normalize whitespace and casing (keeps matching consistent across job/resume).
         normalized = set()
+        
+        # Filter out generic words that the base model sometimes grabs by mistake
+        generic_words = {'hands', 'managing', 'working', 'using', 'familiar', 'data', 'big', 'machine', 'learning', 'skill', 'skills'}
+        noise_keywords = {'experience', 'experienced', 'knowledge', 'understanding', 'proficiency', 'familiarity', 'ability', 'years'}
+        
         for s in skills:
+            # Clean whitespace and strip trailing/leading punctuation
             s2 = re.sub(r"\s+", " ", str(s)).strip().lower()
-            if s2:
-                normalized.add(s2)
+            s2 = re.sub(r'^[^a-z0-9]+|[^a-z0-9]+$', '', s2)
+            
+            if not s2 or len(s2.split()) > 3:
+                continue
+                
+            if s2 in generic_words:
+                continue
+                
+            # Filter out phrases containing noise words (e.g. "professional experience"), except valid terms
+            if any(noise in s2.split() for noise in noise_keywords) and s2 not in ['user experience', 'customer experience']:
+                continue
+
+            normalized.add(s2)
 
         return sorted(list(normalized))[:50]  # Limit to 50 skills
+
+    def extract_total_years_experience(self, text: str) -> float:
+        """Estimate total years of experience from text (job or resume)."""
+        text_lower = text.lower()
+        max_years = 0.0
+
+        # 1. Look for explicit mentions (e.g., "5 years of experience", "10+ years")
+        patterns = [
+            r'(\d+(?:\.\d+)?)\+?\s*years?(?:\s*of)?\s*experience',
+            r'experience.*?(?:of\s*)?(\d+(?:\.\d+)?)\+?\s*years?'
+        ]
+        for pattern in patterns:
+            for match in re.finditer(pattern, text_lower):
+                try:
+                    years = float(match.group(1))
+                    if years < 40:  # Sanity check to ignore ridiculous numbers
+                        max_years = max(max_years, years)
+                except ValueError:
+                    pass
+
+        # 2. Look for year ranges in the experience section
+        exp_section = self._extract_section_content(text, self.EXPERIENCE_HEADERS)
+        if exp_section:
+            years = [int(y) for y in re.findall(r'\b(19[8-9]\d|20[0-2]\d)\b', exp_section)]
+            if years:
+                import datetime
+                min_year = min(years)
+                max_year = datetime.datetime.now().year if re.search(r'\b(present|current|now|till date|to date)\b', exp_section.lower()) else max(years)
+                span = float(max_year - min_year)
+                if 0 < span < 40:
+                    max_years = max(max_years, span)
+
+        return max_years
 
     def extract_experience(self, text: str) -> List[Dict]:
         """

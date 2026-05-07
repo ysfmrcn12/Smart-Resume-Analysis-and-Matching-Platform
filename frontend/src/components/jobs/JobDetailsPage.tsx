@@ -104,6 +104,23 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
     }
   }
 
+  async function handleDeleteApplication(appId: number) {
+    const ok = window.confirm("Delete this application? This cannot be undone.");
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/applications/${appId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        throw new Error('Failed to delete application');
+      }
+      await refreshApplicationsOnly();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete application.");
+    }
+  }
+
   if (loading) {
     return <div className="py-6 text-sm text-zinc-600">Loading job...</div>;
   }
@@ -317,6 +334,14 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
                             title="Analyze resume"
                           >
                             Analyze
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteApplication(a.id)}
+                            className="inline-flex items-center rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                            title="Delete application"
+                          >
+                            Delete
                           </button>
                         </div>
                       </td>

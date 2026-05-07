@@ -36,3 +36,4 @@ data/*
 !data/sample_resumes/
 !data/sample_resumes/**
 .DS_Store
+CMPE-TA4.pdf

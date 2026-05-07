@@ -3,8 +3,10 @@ from flask import Blueprint, request, jsonify
 
 from app import db
 from app.models import JobPosting
+from app.nlp.ner_extractor import NERExtractor
 
 jobs_bp = Blueprint('jobs', __name__)
+ner_extractor = NERExtractor()
 
 TITLE_MAX_LENGTH = 200
 COMPANY_MAX_LENGTH = 200
@@ -47,10 +49,15 @@ def create_job():
         if not data.get(field):
             return jsonify({'error': f'Missing required field: {field}'}), 400
 
+    # Auto-extract requirements from description if none are provided
+    requirements = data.get('requirements', []) or []
+    if not requirements and data.get('description'):
+        requirements = ner_extractor.extract_skills(data['description'])
+
     job = JobPosting(
         title=_truncate_str(data['title'], TITLE_MAX_LENGTH),
         description=data['description'],
-        requirements=data.get('requirements', []) or [],
+        requirements=requirements,
         company=_truncate_str(data.get('company', ''), COMPANY_MAX_LENGTH),
         location=_truncate_str(data.get('location', ''), LOCATION_MAX_LENGTH),
     )

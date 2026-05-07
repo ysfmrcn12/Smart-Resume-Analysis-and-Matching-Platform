@@ -106,9 +106,8 @@ def upload_resume(job_id):
         if not resume_text or not resume_text.strip():
             return jsonify({
                 'error': (
-                    'Could not extract any text from the uploaded PDF. '
-                    'If it is image-based, install Poppler + Tesseract (OCR) '
-                    'or ensure the PDF contains selectable text.'
+                    'Could not extract any text from the uploaded document. '
+                    'The file might be empty, corrupted, or completely unreadable.'
                 )
             }), 422
 
@@ -220,8 +219,10 @@ def get_highlights(app_id):
         if keyword in matching_keyword_positions:
             continue
         positions = _find_term_positions(resume_text, keyword)
-        if positions:
-            matching_keyword_positions[keyword] = positions
+        # Ensure we don't highlight lexical overlap if the word is part of a negated phrase
+        valid_positions = [pos for pos in positions if not ner_extractor._is_negated(resume_text, pos[0])]
+        if valid_positions:
+            matching_keyword_positions[keyword] = valid_positions
 
     sections = section_classifier.extract_sections(resume_text)
     scoring_breakdown = {
@@ -232,6 +233,9 @@ def get_highlights(app_id):
         "tfidf_percent": round(float(score_report.get("tfidf", {}).get("calibrated_similarity", 0.0)) * 100, 2),
         "skill_overlap_ratio": round(float(score_report.get("skills", {}).get("skill_overlap_ratio", 0.0)), 4),
         "skill_multiplier": round(float(score_report.get("skills", {}).get("skill_multiplier", 1.0)), 4),
+        "experience_multiplier": round(float(score_report.get("experience", {}).get("experience_multiplier", 1.0)), 4),
+        "required_years": round(float(score_report.get("experience", {}).get("required_years", 0.0)), 1),
+        "candidate_years": round(float(score_report.get("experience", {}).get("candidate_years", 0.0)), 1),
     }
 
     return jsonify({

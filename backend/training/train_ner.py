@@ -49,7 +49,9 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     train_data = _load_examples(dataset_path)
+    print(f"Loaded {len(train_data)} training examples.")
     nlp = spacy.load(args.base_model)
+    print(f"Loaded base model '{args.base_model}'. Setting up NER pipeline...")
     if "ner" not in nlp.pipe_names:
         ner = nlp.add_pipe("ner")
     else:
@@ -61,16 +63,21 @@ def main():
                 ner.add_label(label)
 
     unaffected_pipes = [p for p in nlp.pipe_names if p != "ner"]
+    print(f"Starting training for {args.epochs} epochs...")
     with nlp.disable_pipes(*unaffected_pipes):
         optimizer = nlp.resume_training()
         for epoch in range(args.epochs):
+            print(f"\n--- Epoch {epoch + 1}/{args.epochs} ---")
             random.shuffle(train_data)
             losses = {}
-            for text, annotations in train_data:
+            total_examples = len(train_data)
+            for i, (text, annotations) in enumerate(train_data):
                 doc = nlp.make_doc(text)
                 example = Example.from_dict(doc, annotations)
                 nlp.update([example], drop=0.2, losses=losses, sgd=optimizer)
-            print(f"Epoch {epoch + 1}/{args.epochs} losses={losses}")
+                if (i + 1) % 50 == 0 or (i + 1) == total_examples:
+                    print(f"  Processed {i + 1}/{total_examples} examples (Loss: {losses.get('ner', 0.0):.2f})")
+            print(f"Completed Epoch {epoch + 1}/{args.epochs}. Total losses={losses}")
 
     nlp.to_disk(str(output_dir))
     print(f"Saved NER model to: {output_dir}")

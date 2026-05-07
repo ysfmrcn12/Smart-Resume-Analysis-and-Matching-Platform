@@ -40,7 +40,7 @@ class MatchingEngine:
         return self.preprocessor.preprocess_for_tfidf(text)
 
     @staticmethod
-    def _calibrate_similarity(raw_similarity: float, k: float = 30.0) -> float:
+    def _calibrate_similarity(raw_similarity: float, k: float = 10.0) -> float:
         """
         Calibrate cosine similarity into a human-friendlier range.
 
@@ -72,11 +72,16 @@ class MatchingEngine:
         overlap = len(matched_skills)
         skill_overlap_ratio = overlap / max(1, job_skill_count)
 
-        if skill_overlap_ratio == 0:
-            # If we could not extract job skills, avoid an arbitrary penalty.
-            skill_multiplier = 1.0 if job_skill_count == 0 else 0.25
+        if job_skill_count == 0:
+            # If we could not extract job skills, avoid an arbitrary penalty
+            skill_multiplier = 1.0
+        elif skill_overlap_ratio == 0:
+            skill_multiplier = 0.5
         else:
-            skill_multiplier = 0.6 + 0.4 * skill_overlap_ratio
+            # Base multiplier from 0.5 to 1.0 based on overlap
+            skill_multiplier = 0.5 + 0.5 * skill_overlap_ratio
+            # Add a slight bonus for matching multiple skills
+            skill_multiplier += min(0.2, overlap * 0.05)
 
         return {
             "job_skills": sorted(job_skills),
@@ -87,6 +92,32 @@ class MatchingEngine:
             "matched_skill_count": overlap,
             "skill_overlap_ratio": skill_overlap_ratio,
             "skill_multiplier": skill_multiplier,
+        }
+
+    def _compute_experience_metrics(self, job_text: str, resume_text: str) -> Dict:
+        """Compare required years of experience vs candidate's years."""
+        req_exp = self.extractor.extract_total_years_experience(job_text)
+        cand_exp = self.extractor.extract_total_years_experience(resume_text)
+        
+        if req_exp == 0:
+            # If job doesn't specify experience, multiplier is neutral
+            exp_multiplier = 1.0
+        else:
+            if cand_exp >= req_exp:
+                # Bonus for meeting or exceeding experience
+                exp_multiplier = 1.1
+            elif cand_exp == 0:
+                # Penalty if they have no detectable experience but the job requires it
+                exp_multiplier = 0.7
+            else:
+                # Proportional penalty
+                ratio = cand_exp / req_exp
+                exp_multiplier = 0.7 + (0.3 * ratio)
+                
+        return {
+            "required_years": req_exp,
+            "candidate_years": cand_exp,
+            "experience_multiplier": exp_multiplier,
         }
 
     def explain_score(self, job_text: str, resume_text: str) -> Dict:
@@ -111,6 +142,11 @@ class MatchingEngine:
                 "skill_overlap_ratio": 0.0,
                 "skill_multiplier": 1.0,
             },
+            "experience": {
+                "required_years": 0.0,
+                "candidate_years": 0.0,
+                "experience_multiplier": 1.0,
+            },
         }
         if not job_text or not resume_text:
             return empty_report
@@ -131,7 +167,8 @@ class MatchingEngine:
         base_score = tfidf_calibrated
 
         skill_metrics = self._compute_skill_metrics(job_text, resume_text)
-        final = self._clamp_float(base_score * skill_metrics["skill_multiplier"])
+        exp_metrics = self._compute_experience_metrics(job_text, resume_text)
+        final = self._clamp_float(base_score * skill_metrics["skill_multiplier"] * exp_metrics["experience_multiplier"])
 
         return {
             "final_score": final,
@@ -144,6 +181,7 @@ class MatchingEngine:
                 "calibrated_similarity": self._clamp_float(tfidf_calibrated),
             },
             "skills": skill_metrics,
+            "experience": exp_metrics,
         }
 
     def compute_similarity(self, job_text: str, resume_text: str) -> float:
@@ -166,7 +204,7 @@ class MatchingEngine:
         resumes: List[Tuple[str, str]]  # List of (id, text)
     ) -> List[Tuple[str, float]]:
         """
-        Compute similarity scores for multiple resumes against one job.
+        Compute similarity scores for multiple resumes against one job efficiently.
 
         Args:
             job_text: Job description
@@ -175,13 +213,44 @@ class MatchingEngine:
         Returns:
             List of (identifier, score) sorted by score descending
         """
-        if not resumes:
+        if not job_text or not resumes:
             return []
 
+        job_processed = self._preprocess(job_text)
+        resume_data = [
+            (rid, resume_text, self._preprocess(resume_text))
+            for rid, resume_text in resumes
+        ]
+
+        # Create a corpus for TF-IDF: [job, resume1, resume2, ...]
+        corpus = [job_processed] + [r[2] for r in resume_data]
+
+        try:
+            # Fit the vectorizer once on all documents
+            tfidf_matrix = self.vectorizer.fit_transform(corpus)
+            job_vec = tfidf_matrix[0]
+            resume_vecs = tfidf_matrix[1:]
+
+            # Compute all similarities at once
+            raw_similarities = cosine_similarity(job_vec, resume_vecs)[0]
+        except Exception:
+            # Fallback if vectorization fails (e.g., all texts are empty)
+            raw_similarities = [0.0] * len(resumes)
+
         scores = []
-        for rid, resume_text in resumes:
-            score = self.compute_similarity(job_text, resume_text)
-            scores.append((rid, score))
+        for i, (rid, resume_text, resume_processed) in enumerate(resume_data):
+            if not resume_text or not resume_processed:
+                scores.append((rid, 0.0))
+                continue
+
+            raw_tfidf = raw_similarities[i]
+            tfidf_calibrated = self._calibrate_similarity(raw_tfidf)
+            base_score = tfidf_calibrated
+            skill_metrics = self._compute_skill_metrics(job_text, resume_text)
+            exp_metrics = self._compute_experience_metrics(job_text, resume_text)
+            final_score = self._clamp_float(base_score * skill_metrics["skill_multiplier"] * exp_metrics["experience_multiplier"])
+            scores.append((rid, final_score))
+
         return sorted(scores, key=lambda x: x[1], reverse=True)
 
     def rank_candidates(

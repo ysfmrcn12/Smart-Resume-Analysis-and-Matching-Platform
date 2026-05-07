@@ -22,48 +22,43 @@ class ResumeParser:
     def __init__(self):
         self.preprocessor = TextPreprocessor(lowercase=False, remove_stop_words=False)
 
-    def print_ocr_debug(self) -> None:
-        """Print detected OCR tool paths for debugging."""
-        import shutil
-        tesseract_cmd = os.getenv('TESSERACT_CMD') or shutil.which('tesseract')
-        if not tesseract_cmd:
-            common_tess = [
-                r"C:\Program Files\Tesseract-OCR\tesseract.exe\tesseract.exe",
-                r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-                r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-            ]
-            for p in common_tess:
-                if os.path.exists(p):
-                    tesseract_cmd = p
-                    break
+    def _find_tesseract_cmd(self) -> Optional[str]:
+        """Find Tesseract executable."""
+        cmd = os.getenv('TESSERACT_CMD') or shutil.which('tesseract')
+        if cmd:
+            return cmd
+        # Common Windows install locations
+        common_paths = [
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+        ]
+        for path in common_paths:
+            if os.path.exists(path):
+                return path
+        return None
 
-        poppler_path = os.getenv('POPPLER_PATH')
-        if not poppler_path:
-            pdftoppm_sh = shutil.which('pdftoppm')
-            if pdftoppm_sh:
-                poppler_path = os.path.dirname(pdftoppm_sh)
-            else:
-                common_poppler = [
-                    r"C:\Program Files\poppler-0.68.0\bin",
-                    r"C:\Program Files\poppler-21.03.0\Library\bin",
-                    r"C:\tools\poppler\bin",
-                ]
-                for p in common_poppler:
-                    if os.path.isdir(p):
-                        poppler_path = p
-                        break
-
-        print('OCR debug:')
-        print('  TESSERACT_CMD =', tesseract_cmd)
-        print('  POPPLER_PATH  =', poppler_path)
-        if not poppler_path:
-            print('  --> Poppler not found; install from https://poppler.freedesktop.org/ and set POPPLER_PATH or add to PATH')
-        if not tesseract_cmd:
-            print('  --> Tesseract not found; install from https://github.com/tesseract-ocr/tesseract and set TESSERACT_CMD or add to PATH')
+    def _find_poppler_path(self) -> Optional[str]:
+        """Find Poppler's bin directory."""
+        path = os.getenv('POPPLER_PATH')
+        if path and os.path.isdir(path):
+            return path
+        # Check if pdftoppm is in PATH
+        pdftoppm_path = shutil.which('pdftoppm')
+        if pdftoppm_path:
+            return str(Path(pdftoppm_path).parent)
+        # Common Windows locations
+        common_paths = [
+            r"C:\Program Files\poppler-23.11.0\Library\bin", # Example version
+            r"C:\Program Files\poppler-0.68.0\bin",
+            r"C:\tools\poppler\bin",
+        ]
+        for p in common_paths:
+            if os.path.isdir(p):
+                return p
+        return None
 
     def _read_pdf(self, file_path: str) -> str:
         """Extract text from PDF file."""
-        # If extracted text is "too small", treat as no-text and try OCR.
         MIN_EXTRACTED_TEXT_CHARS = 50
         try:
             import pdfplumber
@@ -95,103 +90,48 @@ class ResumeParser:
                 # preserve original exception message for diagnostics
                 orig_exc = e
 
-        # Optional OCR fallback for scanned/image PDFs (requires poppler and tesseract)
+        # If text extraction failed or yielded too little text, attempt OCR.
         try:
             from pdf2image import convert_from_path
-        except Exception:
-            raise ValueError(
-                "pdf2image is not installed. Install pdf2image and pytesseract to enable OCR fallback."
-            )
-
-        try:
             import pytesseract
         except Exception:
-            raise ValueError(
-                "pytesseract is not installed. Install pytesseract to enable OCR fallback."
-            )
+            raise ValueError("Python OCR libraries missing. Please run: pip install pytesseract pdf2image")
 
-        # Auto-detect tesseract cmd and poppler path
-        tesseract_cmd = os.getenv('TESSERACT_CMD')
-        if not tesseract_cmd:
-            tesseract_sh = shutil.which('tesseract')
-            if tesseract_sh:
-                tesseract_cmd = tesseract_sh
-            else:
-                # common Windows install locations
-                common_tess = [
-                    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-                    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-                ]
-                for p in common_tess:
-                    if os.path.exists(p):
-                        tesseract_cmd = p
-                        break
+        tesseract_cmd = self._find_tesseract_cmd()
+        poppler_path = self._find_poppler_path()
 
-        poppler_path = os.getenv('POPPLER_PATH')
-        if not poppler_path:
-            pdftoppm_sh = shutil.which('pdftoppm')
-            if pdftoppm_sh:
-                poppler_path = os.path.dirname(pdftoppm_sh)
-            else:
-                # common Windows locations (user may extract poppler to these)
-                common_poppler = [
-                    r"C:\Program Files\poppler-0.68.0\bin",
-                    r"C:\Program Files\poppler-21.03.0\Library\bin",
-                    r"C:\tools\poppler\poppler-23.08.0\Library\bin",
-                    r"C:\tools\poppler\poppler-23.08.0\bin",
-                    r"C:\tools\poppler\bin",
-                ]
-                for p in common_poppler:
-                    if os.path.isdir(p):
-                        poppler_path = p
-                        break
-
-        # configure tesseract if we found it
         if tesseract_cmd:
             pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
+        else:
+            raise ValueError("Tesseract OCR not found. If you just installed it via Chocolatey, completely close and restart your terminal/IDE to update the PATH.")
 
-        # convert pages to images using poppler if available
         try:
-            if poppler_path:
-                images = convert_from_path(file_path, poppler_path=poppler_path)
-            else:
-                images = convert_from_path(file_path)
+            images = convert_from_path(file_path, poppler_path=poppler_path)
         except Exception as e:
-            # If OCR tooling (Poppler) isn't available, don't fail the whole upload.
-            # We return empty text and let the rest of the pipeline score/extract safely.
-            print(
-                "OCR skipped: could not convert PDF pages to images for OCR:",
-                str(e),
-            )
-            return ''
+            if not poppler_path:
+                raise ValueError("Poppler not found. If you just installed it, completely close and restart your terminal/IDE to update the PATH.")
+            raise ValueError(f"OCR failed to convert PDF to images. Error: {str(e)}")
 
         if not images:
             return ''
 
         ocr_text_parts = []
         ocr_errors = []
-        
+
         for idx, img in enumerate(images):
             try:
-                # Pass PIL Image directly to pytesseract to avoid path encoding issues
                 ocr_text = pytesseract.image_to_string(img, lang='eng')
                 if ocr_text and ocr_text.strip():
                     ocr_text_parts.append(ocr_text)
             except Exception as e:
                 ocr_errors.append(f"Page {idx}: {str(e)}")
-        
+
         if ocr_errors:
             print(f"OCR warnings: {', '.join(ocr_errors)}")
-        
+
         ocr_text = '\n'.join(ocr_text_parts) if ocr_text_parts else ''
-        if ocr_text.strip():
-            return ocr_text
-        # final fallback
-        print(
-            "OCR skipped: no text extracted from PDF images. " 
-            "Returning empty resume text."
-        )
-        return ''
+        return ocr_text
+
     def _read_docx(self, file_path: str) -> str:
         """Extract text from DOCX file."""
         try:
