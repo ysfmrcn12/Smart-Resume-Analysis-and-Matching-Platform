@@ -319,6 +319,34 @@ def get_highlights(app_id):
         "experience_multiplier": round(float(score_report.get("experience", {}).get("experience_multiplier", 1.0)), 4),
         "required_years": round(float(score_report.get("experience", {}).get("required_years", 0.0)), 1),
         "candidate_years": round(float(score_report.get("experience", {}).get("candidate_years", 0.0)), 1),
+        "calculation_breakdown": {
+            "formula": score_report.get("calculation_breakdown", {}).get(
+                "formula",
+                "clamp(base_score * skill_multiplier * experience_multiplier)",
+            ),
+            "pre_clamp_score_percent": round(
+                float(score_report.get("calculation_breakdown", {}).get("pre_clamp_score", 0.0)) * 100,
+                2,
+            ),
+            "final_score_percent": round(
+                float(score_report.get("calculation_breakdown", {}).get("final_score", 0.0)) * 100,
+                2,
+            ),
+            "was_clamped": bool(score_report.get("calculation_breakdown", {}).get("was_clamped", False)),
+            "steps": [
+                {
+                    "name": step.get("name", ""),
+                    "value": round(float(step.get("value", 0.0)), 4),
+                    "percent_value": (
+                        round(float(step.get("value", 0.0)) * 100, 2)
+                        if step.get("name") == "base_score"
+                        else None
+                    ),
+                }
+                for step in score_report.get("calculation_breakdown", {}).get("steps", [])
+                if isinstance(step, dict)
+            ],
+        },
     }
 
     return jsonify({

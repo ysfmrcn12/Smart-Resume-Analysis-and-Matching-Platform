@@ -74,6 +74,13 @@ class MatchingEngine:
         """Clamp float value to a range."""
         return max(min_value, min(max_value, value))
 
+    @staticmethod
+    def _normalize_skill_term(skill: str) -> str:
+        """Normalize extracted skill strings for stable, case-insensitive matching."""
+        if not skill:
+            return ""
+        return " ".join(str(skill).strip().lower().split())
+
     def _preprocess(self, text: str) -> str:
         """Preprocess text for vectorization."""
         return self.preprocessor.preprocess_for_tfidf(text)
@@ -114,8 +121,16 @@ class MatchingEngine:
     def _compute_skill_metrics(self, job_text: str, resume_text: str) -> Dict:
         """Extract skill overlap statistics and multiplier."""
         try:
-            job_skills = set(self.extractor.extract_skills(job_text))
-            resume_skills = set(self.extractor.extract_skills(resume_text))
+            job_skills = {
+                self._normalize_skill_term(skill)
+                for skill in self.extractor.extract_skills(job_text)
+            }
+            resume_skills = {
+                self._normalize_skill_term(skill)
+                for skill in self.extractor.extract_skills(resume_text)
+            }
+            job_skills = {skill for skill in job_skills if skill}
+            resume_skills = {skill for skill in resume_skills if skill}
         except Exception:
             job_skills = set()
             resume_skills = set()
@@ -200,6 +215,17 @@ class MatchingEngine:
                 "candidate_years": 0.0,
                 "experience_multiplier": 1.0,
             },
+            "calculation_breakdown": {
+                "formula": "clamp(base_score * skill_multiplier * experience_multiplier)",
+                "pre_clamp_score": 0.0,
+                "final_score": 0.0,
+                "was_clamped": False,
+                "steps": [
+                    {"name": "base_score", "value": 0.0},
+                    {"name": "skill_multiplier", "value": 1.0},
+                    {"name": "experience_multiplier", "value": 1.0},
+                ],
+            },
         }
         if not job_text or not resume_text:
             return empty_report
@@ -225,7 +251,8 @@ class MatchingEngine:
 
         skill_metrics = self._compute_skill_metrics(job_text, resume_text)
         exp_metrics = self._compute_experience_metrics(job_text, resume_text)
-        final = self._clamp_float(base_score * skill_metrics["skill_multiplier"] * exp_metrics["experience_multiplier"])
+        pre_clamp_final = base_score * skill_metrics["skill_multiplier"] * exp_metrics["experience_multiplier"]
+        final = self._clamp_float(pre_clamp_final)
 
         return {
             "final_score": final,
@@ -239,6 +266,17 @@ class MatchingEngine:
             },
             "skills": skill_metrics,
             "experience": exp_metrics,
+            "calculation_breakdown": {
+                "formula": "clamp(base_score * skill_multiplier * experience_multiplier)",
+                "pre_clamp_score": pre_clamp_final,
+                "final_score": final,
+                "was_clamped": not math.isclose(pre_clamp_final, final, rel_tol=1e-9, abs_tol=1e-12),
+                "steps": [
+                    {"name": "base_score", "value": self._clamp_float(base_score)},
+                    {"name": "skill_multiplier", "value": skill_metrics["skill_multiplier"]},
+                    {"name": "experience_multiplier", "value": exp_metrics["experience_multiplier"]},
+                ],
+            },
         }
 
     def compute_similarity(self, job_text: str, resume_text: str) -> float:

@@ -206,10 +206,14 @@ function ScoreCalculationModal({ data, onClose }: { data: any; onClose: () => vo
   }, [onClose]);
 
   const r = data.scoring_report;
+  const calc = r.calculation_breakdown ?? {};
   const baseScore = (r.base_score_percent ?? 0).toFixed(2);
   const skillMultiplier = (r.skill_multiplier ?? 1).toFixed(2);
   const expMultiplier = (r.experience_multiplier ?? 1).toFixed(2);
   const finalScore = r.final_score_percent.toFixed(2);
+  const preClampScore = Number(calc.pre_clamp_score_percent ?? r.final_score_percent ?? 0).toFixed(2);
+  const wasClamped = Boolean(calc.was_clamped);
+  const breakdownSteps = Array.isArray(calc.steps) ? calc.steps : [];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm transition-opacity">
@@ -250,6 +254,31 @@ function ScoreCalculationModal({ data, onClose }: { data: any; onClose: () => vo
 
           {/* Detailed Explanations */}
           <div className="flex flex-col gap-6">
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-5">
+              <h3 className="text-base font-bold text-zinc-900">Applied Formula</h3>
+              <p className="mt-1 text-sm text-zinc-700">
+                {(calc.formula as string) || "clamp(base_score * skill_multiplier * experience_multiplier)"}
+              </p>
+              <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-zinc-700 sm:grid-cols-2">
+                {breakdownSteps.map((step: any) => (
+                  <div key={step.name} className="rounded-md border border-zinc-200 bg-white px-3 py-2">
+                    <span className="font-semibold">{step.name}</span>
+                    <span className="ml-2">
+                      {step.percent_value != null ? `${Number(step.percent_value).toFixed(2)}%` : Number(step.value ?? 0).toFixed(4)}
+                    </span>
+                  </div>
+                ))}
+                <div className="rounded-md border border-zinc-200 bg-white px-3 py-2">
+                  <span className="font-semibold">pre_clamp_score</span>
+                  <span className="ml-2">{preClampScore}%</span>
+                </div>
+                <div className="rounded-md border border-zinc-200 bg-white px-3 py-2">
+                  <span className="font-semibold">clamped</span>
+                  <span className="ml-2">{wasClamped ? "yes" : "no"}</span>
+                </div>
+              </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-4 rounded-xl border border-blue-100 bg-blue-50/50 p-6">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-200 text-blue-800 font-bold text-lg shadow-sm">
                 1
