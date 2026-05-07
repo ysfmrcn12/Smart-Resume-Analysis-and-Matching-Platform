@@ -288,6 +288,7 @@ def get_highlights(app_id):
     score_report = matching_engine.explain_score(job_text, resume_text)
 
     matched_skills = score_report.get("skills", {}).get("matched_skills", [])
+    job_skills = score_report.get("skills", {}).get("job_skills", [])
     lexical_overlap = _extract_keyword_overlap(job_text, resume_text, max_terms=25)
 
     matching_skill_positions = {}
@@ -311,8 +312,8 @@ def get_highlights(app_id):
         "final_score_percent": round(float(score_report.get("final_score", 0.0)) * 100, 2),
         "base_score_percent": round(float(score_report.get("base_score_before_skill_adjustment", 0.0)) * 100, 2),
         "weights": score_report.get("weights", {}),
-        "tfidf_raw": round(float(score_report.get("tfidf", {}).get("raw_similarity", 0.0)), 4),
-        "tfidf_percent": round(float(score_report.get("tfidf", {}).get("calibrated_similarity", 0.0)) * 100, 2),
+        "semantic_raw": round(float(score_report.get("semantic", {}).get("raw_similarity", 0.0)), 4),
+        "semantic_percent": round(float(score_report.get("semantic", {}).get("calibrated_similarity", 0.0)) * 100, 2),
         "skill_overlap_ratio": round(float(score_report.get("skills", {}).get("skill_overlap_ratio", 0.0)), 4),
         "skill_multiplier": round(float(score_report.get("skills", {}).get("skill_multiplier", 1.0)), 4),
         "experience_multiplier": round(float(score_report.get("experience", {}).get("experience_multiplier", 1.0)), 4),
@@ -321,12 +322,19 @@ def get_highlights(app_id):
     }
 
     return jsonify({
+        'application_id': application.id,
+        'candidate_name': application.candidate_name,
+        'job_id': job.id,
+        'job_title': job.title,
+        'job_description': job.description,
+        'job_requirements': job.requirements,
         'resume_text': resume_text,
         'matching_skills': matching_skill_positions,
         'matching_keywords': matching_keyword_positions,
         'matched_count': len(matched_skills),
         'job_skill_count': int(score_report.get("skills", {}).get("job_skill_count", 0)),
         'matched_skills': matched_skills,
+        'job_skills': job_skills,
         'lexical_overlap_keywords': lexical_overlap,
         'sections': sections,
         'scoring_report': scoring_breakdown,

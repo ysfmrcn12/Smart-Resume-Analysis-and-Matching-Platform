@@ -40,9 +40,13 @@ class NERExtractor:
     def nlp(self):
         """Lazy load spaCy model."""
         if self._nlp is None:
+            local_path = Path(__file__).resolve().parent.parent.parent / "models" / self.model_name
             try:
                 import spacy
-                self._nlp = spacy.load(self.model_name)
+                if local_path.exists():
+                    self._nlp = spacy.load(local_path)
+                else:
+                    self._nlp = spacy.load(self.model_name)
             except OSError:
                 if self.model_name != 'en_core_web_sm':
                     raise

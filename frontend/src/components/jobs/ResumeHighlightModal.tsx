@@ -26,6 +26,7 @@ export default function ResumeHighlightModal({
   const [data, setData] = useState<HighlightReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hoveredKeyword, setHoveredKeyword] = useState<string | null>(null);
 
   // Score color logic
   const getScoreColor = (s: number) => {
@@ -68,7 +69,7 @@ export default function ResumeHighlightModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-lg">
+      <div className="relative flex max-h-[90vh] w-[90vw] max-w-7xl flex-col rounded-lg bg-white shadow-lg">
         {/* Header */}
         <div className="border-b border-zinc-200 px-6 py-4">
           <div className="flex items-start justify-between gap-6">
@@ -125,9 +126,9 @@ export default function ResumeHighlightModal({
               <div className="flex flex-col gap-3">
                 <h3 className="font-semibold text-zinc-900">Job Description</h3>
                 <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-                  <p className="whitespace-pre-wrap text-sm text-zinc-700">
-                    {jobDescription || "No description provided."}
-                  </p>
+                  <div className="whitespace-pre-wrap text-sm text-zinc-700">
+                    <JobTextHighlighter text={jobDescription || "No description provided."} keyword={hoveredKeyword} />
+                  </div>
                 </div>
               </div>
 
@@ -137,7 +138,7 @@ export default function ResumeHighlightModal({
                 {Array.isArray(jobRequirements) && jobRequirements.length > 0 ? (
                   <ul className="list-inside list-disc space-y-2 text-sm text-zinc-700">
                     {jobRequirements.map((req, i) => (
-                      <li key={i}>{req}</li>
+                      <li key={i}><JobTextHighlighter text={req} keyword={hoveredKeyword} /></li>
                     ))}
                   </ul>
                 ) : (
@@ -162,6 +163,7 @@ export default function ResumeHighlightModal({
                   <HighlightedText
                     text={data.resume_text}
                     keywords={[...data.matched_skills, ...data.lexical_overlap_keywords]}
+                    onHover={setHoveredKeyword}
                   />
                 </div>
               ) : null}
@@ -194,38 +196,91 @@ export default function ResumeHighlightModal({
 
 function ScoringReportCard({ data }: { data: HighlightReport }) {
   const r = data.scoring_report;
+  const baseScore = ((r as any).base_score_percent ?? 0).toFixed(2);
+  const skillMultiplier = (r.skill_multiplier ?? 1).toFixed(2);
+  const expMultiplier = ((r as any).experience_multiplier ?? 1).toFixed(2);
+  const finalScore = r.final_score_percent.toFixed(2);
+
   return (
-    <div className="border-t border-zinc-200 px-6 py-5">
-      <h3 className="text-base font-semibold text-zinc-900">How this score was obtained</h3>
-      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
-          <div className="font-semibold text-zinc-900">Final Score</div>
-          <div className="mt-1">{r.final_score_percent.toFixed(2)}%</div>
-          <div className="mt-2 text-xs text-zinc-600">
-            Base score {r.base_score_percent.toFixed(2)}% x skill multiplier {r.skill_multiplier.toFixed(2)}
+    <div className="border-t border-zinc-200 px-6 py-8 bg-zinc-50/30">
+      <h3 className="text-xl font-bold text-zinc-900 mb-6">Score Calculation Breakdown</h3>
+
+      {/* Formula Visualization */}
+      <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm mb-8">
+        <div className="flex flex-col items-center text-center">
+          <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Base Score</span>
+          <span className="mt-1 text-3xl font-extrabold text-blue-600">{baseScore}%</span>
+        </div>
+        <div className="text-2xl font-bold text-zinc-300">×</div>
+        <div className="flex flex-col items-center text-center">
+          <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Skill Multiplier</span>
+          <span className="mt-1 text-3xl font-extrabold text-emerald-600">{skillMultiplier}</span>
+        </div>
+        <div className="text-2xl font-bold text-zinc-300">×</div>
+        <div className="flex flex-col items-center text-center">
+          <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Exp. Multiplier</span>
+          <span className="mt-1 text-3xl font-extrabold text-purple-600">{expMultiplier}</span>
+        </div>
+        <div className="text-2xl font-bold text-zinc-300">=</div>
+        <div className="flex flex-col items-center text-center rounded-xl bg-zinc-900 px-6 py-3 text-white shadow-lg">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Final Score</span>
+          <span className="mt-1 text-4xl font-black">{finalScore}%</span>
+        </div>
+      </div>
+
+      {/* Detailed Explanations */}
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col sm:flex-row gap-4 rounded-xl border border-blue-100 bg-blue-50/50 p-5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-200 text-blue-800 font-bold text-sm shadow-sm">
+            1
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-blue-900">The AI Base Score (The "New" TF-IDF)</h3>
+            <p className="mt-1 text-sm text-zinc-700 leading-relaxed">
+              Instead of just counting word frequencies, the AI reads the entire job description and the entire resume to understand their overall meaning.
+            </p>
+            <ul className="mt-2 list-disc pl-5 text-sm text-zinc-700 space-y-1 marker:text-blue-400">
+              <li>The AI spits out a raw "similarity" number.</li>
+              <li>The system mathematically scales this number so it looks like a normal grade (e.g., 80%). This is your starting point.</li>
+            </ul>
           </div>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
-          <div className="font-semibold text-zinc-900">TF-IDF Component</div>
-          <div className="mt-1">
-            {r.tfidf_percent.toFixed(2)}% (raw cosine: {r.tfidf_raw.toFixed(4)})
+        
+        <div className="flex flex-col sm:flex-row gap-4 rounded-xl border border-emerald-100 bg-emerald-50/50 p-5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-emerald-800 font-bold text-sm shadow-sm">
+            2
           </div>
-          <div className="mt-2 text-xs text-zinc-600">
-            Weight in final base score: {((r.weights.tfidf ?? 1) * 100).toFixed(0)}%
+          <div>
+            <h3 className="text-base font-bold text-emerald-900">The Skill Multiplier (The Keyword Check)</h3>
+            <p className="mt-1 text-sm text-zinc-700 leading-relaxed">
+              Because the AI sometimes gets a little too creative with context, the system still demands hard keyword matches (which is the part of TF-IDF we wanted to keep!).
+            </p>
+            <ul className="mt-2 list-disc pl-5 text-sm text-zinc-700 space-y-1 marker:text-emerald-400">
+              <li>It extracts the required skills from the job and compares them to the resume.</li>
+              <li>If you have <strong>zero exact matches</strong>, your Base Score gets multiplied by <strong>0.75x</strong> (a 25% penalty).</li>
+              <li>If you match all of them, your Base Score gets multiplied by up to <strong>1.15x</strong> (a 15% bonus).</li>
+            </ul>
           </div>
         </div>
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-700">
-          <div className="font-semibold text-zinc-900">Skill Alignment</div>
-          <div className="mt-1">
-            {(r.skill_overlap_ratio * 100).toFixed(2)}% overlap ({data.matched_count}/{data.job_skill_count})
+        
+        <div className="flex flex-col sm:flex-row gap-4 rounded-xl border border-purple-100 bg-purple-50/50 p-5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-200 text-purple-800 font-bold text-sm shadow-sm">
+            3
           </div>
-          <div className="mt-2 text-xs text-zinc-600">
-            Multiplier applied to base score: {r.skill_multiplier.toFixed(2)}
+          <div>
+            <h3 className="text-base font-bold text-purple-900">The Experience Multiplier (The Seniority Check)</h3>
+            <p className="mt-1 text-sm text-zinc-700 leading-relaxed">
+              Finally, it checks the years of experience.
+            </p>
+            <ul className="mt-2 list-disc pl-5 text-sm text-zinc-700 space-y-1 marker:text-purple-400">
+              <li>If the job asks for 5 years and the candidate has 5+ years, they get a <strong>1.1x multiplier</strong> (10% bonus).</li>
+              <li>If the candidate has fewer years, they get a <strong>penalty multiplier</strong> (dropping down to 0.85x).</li>
+            </ul>
           </div>
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="mt-10 grid grid-cols-1 gap-3 md:grid-cols-2">
         <div className="rounded-lg border border-zinc-200 bg-white p-3">
           <div className="text-sm font-semibold text-zinc-900">Matched skills</div>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -268,9 +323,11 @@ function ScoringReportCard({ data }: { data: HighlightReport }) {
 function HighlightedText({
   text,
   keywords,
+  onHover,
 }: {
   text: string;
   keywords: string[];
+  onHover: (keyword: string | null) => void;
 }) {
   if (!keywords || keywords.length === 0) return <>{text}</>;
 
@@ -292,13 +349,51 @@ function HighlightedText({
         // Every odd index is a matched keyword because of the single capture group in the regex
         if (i % 2 === 1) {
           return (
-            <mark key={i} className="bg-yellow-300 px-0.5 rounded-sm font-medium">
+            <mark
+              key={i}
+              className="bg-yellow-300 px-0.5 rounded-sm font-medium cursor-pointer"
+              onMouseEnter={() => onHover(part.toLowerCase())}
+              onMouseLeave={() => onHover(null)}
+            >
               {part}
             </mark>
           );
         }
         return <span key={i}>{part}</span>;
       })}
+    </>
+  );
+}
+
+function JobTextHighlighter({ text, keyword }: { text: string; keyword: string | null }) {
+  if (!keyword || !text) {
+    return <>{text}</>;
+  }
+
+  // Escape keyword for regex, and ensure it's treated as a whole word.
+  const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`(\\b${escapedKeyword}\\b)`, "gi");
+
+  if (!regex.test(text)) {
+    return <>{text}</>;
+  }
+
+  const parts = text.split(regex);
+
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <mark
+            key={i}
+            className="bg-blue-300 px-0.5 rounded-sm font-medium transition-colors"
+          >
+            {part}
+          </mark>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
     </>
   );
 }

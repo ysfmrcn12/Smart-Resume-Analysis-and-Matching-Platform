@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { JobPosting, JobUpdateInput } from "@/lib/api/types";
 import { updateJob } from "@/lib/api/jobs";
 
@@ -20,6 +20,7 @@ export default function JobEditForm({
   const [requirementInput, setRequirementInput] = useState("");
   const [company, setCompany] = useState(job.company);
   const [location, setLocation] = useState(job.location);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +34,13 @@ export default function JobEditForm({
     setCompany(job.company);
     setLocation(job.location);
   }, [job]);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [description]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -89,10 +97,11 @@ export default function JobEditForm({
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium text-zinc-800">Description *</span>
           <textarea
+            ref={textareaRef}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
-            className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
+            className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400 resize-none overflow-hidden"
           />
         </label>
 

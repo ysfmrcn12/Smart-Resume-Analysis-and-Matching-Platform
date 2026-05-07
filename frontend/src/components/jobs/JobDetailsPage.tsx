@@ -7,7 +7,6 @@ import type { Application, JobPosting } from "@/lib/api/types";
 import { deleteJob, getJob } from "@/lib/api/jobs";
 import { listApplications, rankApplications } from "@/lib/api/applications";
 import UploadResumeForm from "./UploadResumeForm";
-import ResumeHighlightModal from "./ResumeHighlightModal";
 
 function formatDate(value: string | null) {
   if (!value) return "";
@@ -37,8 +36,6 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
   const [error, setError] = useState<string | null>(null);
   const [rankedMode, setRankedMode] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
-  const [highlightModalOpen, setHighlightModalOpen] = useState(false);
-  const [selectedAppId, setSelectedAppId] = useState<number | null>(null);
 
   const refreshJobAndApplications = useCallback(async () => {
     setError(null);
@@ -313,28 +310,20 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
                       </td>
                       <td className="border-b border-zinc-100 py-3 pr-3 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedAppId(a.id);
-                              setHighlightModalOpen(true);
-                            }}
+                          <Link
+                            href={`/applications/${a.id}`}
                             className={`inline-flex items-center rounded-lg px-3 py-2 text-sm font-bold cursor-pointer transition-opacity hover:opacity-80 ${badge.className}`}
                             title="Click to see matching skills"
                           >
                             {badge.text}%
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedAppId(a.id);
-                              setHighlightModalOpen(true);
-                            }}
+                          </Link>
+                          <Link
+                            href={`/applications/${a.id}`}
                             className="inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
                             title="Analyze resume"
                           >
                             Analyze
-                          </button>
+                          </Link>
                           <button
                             type="button"
                             onClick={() => void handleDeleteApplication(a.id)}
@@ -354,22 +343,6 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
         )}
       </section>
 
-      <ResumeHighlightModal
-        isOpen={highlightModalOpen}
-        onClose={() => {
-          setHighlightModalOpen(false);
-          setSelectedAppId(null);
-        }}
-        applicationId={selectedAppId || 0}
-        candidateName={
-          applications.find((a) => a.id === selectedAppId)?.candidate_name ||
-          "Candidate"
-        }
-        jobTitle={job?.title || ""}
-        jobDescription={job?.description || ""}
-        jobRequirements={Array.isArray(job?.requirements) ? job.requirements : []}
-        score={applications.find((a) => a.id === selectedAppId)?.compatibility_score || 0}
-      />
     </div>
   );
 }
