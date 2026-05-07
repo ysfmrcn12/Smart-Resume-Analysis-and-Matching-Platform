@@ -25,12 +25,26 @@ export type ScoringReport = {
   final_score_percent: number;
   base_score_percent: number;
   weights: {
-    tfidf?: number;
+    semantic?: number;
   };
-  tfidf_raw: number;
-  tfidf_percent: number;
+  semantic_raw: number;
+  semantic_percent: number;
   skill_overlap_ratio: number;
   skill_multiplier: number;
+  experience_multiplier: number;
+  required_years: number;
+  candidate_years: number;
+  calculation_breakdown: {
+    formula: string;
+    pre_clamp_score_percent: number;
+    final_score_percent: number;
+    was_clamped: boolean;
+    steps: Array<{
+      name: string;
+      value: number;
+      percent_value: number | null;
+    }>;
+  };
 };
 
 export type HighlightReport = {

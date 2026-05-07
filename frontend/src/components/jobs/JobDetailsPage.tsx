@@ -36,6 +36,11 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
   const [error, setError] = useState<string | null>(null);
   const [rankedMode, setRankedMode] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
+  const [storedRole, setStoredRole] = useState<"hr" | "applicant">("hr");
+  const [urlRole, setUrlRole] = useState<"hr" | "applicant" | null>(null);
+
+  const role = urlRole ?? storedRole;
+  const isApplicantView = role === "applicant";
 
   const refreshJobAndApplications = useCallback(async () => {
     setError(null);
@@ -55,6 +60,19 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
   useEffect(() => {
     void refreshJobAndApplications();
   }, [refreshJobAndApplications]);
+
+  useEffect(() => {
+    const savedRole = window.localStorage.getItem("sramp_user_role");
+    if (savedRole === "applicant" || savedRole === "hr") {
+      setStoredRole(savedRole);
+    }
+    const roleQueryParam = new URLSearchParams(window.location.search).get("role");
+    if (roleQueryParam === "applicant" || roleQueryParam === "hr") {
+      setUrlRole(roleQueryParam);
+      window.localStorage.setItem("sramp_user_role", roleQueryParam);
+      setStoredRole(roleQueryParam);
+    }
+  }, []);
 
   useEffect(() => {
     if (!applyOpen) return;
@@ -125,7 +143,7 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
   if (error || !job) {
     return (
       <div className="flex flex-col gap-3 py-6">
-        <Link href="/jobs" className="text-sm font-semibold text-zinc-700 hover:underline">
+        <Link href={`/jobs?role=${role}`} className="text-sm font-semibold text-zinc-700 hover:underline">
           Back to jobs
         </Link>
         {error ? <div className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
@@ -139,7 +157,7 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
       <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
         <div className="mb-4">
           <Link
-            href="/jobs"
+            href={`/jobs?role=${role}`}
             className="inline-flex items-center rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
           >
             ← Back to jobs
@@ -166,19 +184,21 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
             ) : null}
           </div>
 
-          <div className="flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                const ok = window.confirm(`Delete job "${job.title}"? This cannot be undone.`);
-                if (!ok) return;
-                deleteJob(job.id).then(() => router.push("/jobs"));
-              }}
-              className="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
-            >
-              Delete Job
-            </button>
-          </div>
+          {isApplicantView ? null : (
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const ok = window.confirm(`Delete job "${job.title}"? This cannot be undone.`);
+                  if (!ok) return;
+                  deleteJob(job.id).then(() => router.push(`/jobs?role=${role}`));
+                }}
+                className="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
+              >
+                Delete Job
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 flex items-center justify-end">
@@ -215,134 +235,142 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
         </div>
       )}
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-zinc-900">
-              Applications
-            </h2>
-            <p className="text-sm text-zinc-600">{applicantCountLabel}</p>
+      {isApplicantView ? (
+        <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <h2 className="text-base font-semibold text-zinc-900">Application Tracking</h2>
+          <p className="mt-2 text-sm text-zinc-600">
+            Applicant mode only allows job browsing and submission. HR-only ranking and candidate comparison is hidden.
+          </p>
+        </section>
+      ) : (
+        <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-zinc-900">
+                Applications
+              </h2>
+              <p className="text-sm text-zinc-600">{applicantCountLabel}</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void refreshApplicationsOnly()}
+                disabled={loadingApps}
+                className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={() => void onRank()}
+                disabled={loadingApps}
+                className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loadingApps ? "Working..." : "Rank Applicants"}
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void refreshApplicationsOnly()}
-              disabled={loadingApps}
-              className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Refresh
-            </button>
-            <button
-              type="button"
-              onClick={() => void onRank()}
-              disabled={loadingApps}
-              className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loadingApps ? "Working..." : "Rank Applicants"}
-            </button>
-          </div>
-        </div>
+          {rankedMode ? (
+            <div className="mb-3 rounded bg-blue-50 p-2 text-sm text-blue-800">
+              Showing ranked results.
+            </div>
+          ) : null}
 
-        {rankedMode ? (
-          <div className="mb-3 rounded bg-blue-50 p-2 text-sm text-blue-800">
-            Showing ranked results.
-          </div>
-        ) : null}
+          {error ? <div className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div> : null}
 
-        {error ? <div className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div> : null}
-
-        {loadingApps ? (
-          <div className="py-6 text-sm text-zinc-600">Loading applications...</div>
-        ) : applications.length === 0 ? (
-          <div className="py-6 text-sm text-zinc-600">No applications yet.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-separate border-spacing-0">
-              <thead>
-                <tr className="text-left text-xs font-medium text-zinc-600">
-                  <th className="border-b border-zinc-200 py-2 pr-3">Candidate</th>
-                  <th className="border-b border-zinc-200 py-2 pr-3">Email</th>
-                  <th className="border-b border-zinc-200 py-2 pr-3">File</th>
-                  <th className="border-b border-zinc-200 py-2 pr-3">Uploaded</th>
-                  <th className="border-b border-zinc-200 py-2 pr-3 text-right">Match Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {applications.map((a) => {
-                  const badge = scoreLabel(a.compatibility_score);
-                  return (
-                    <tr key={a.id} className="align-top">
-                      <td className="border-b border-zinc-100 py-3 pr-3">
-                        <div className="text-sm font-semibold text-zinc-900">
-                          {a.candidate_name || "Unknown"}
-                        </div>
-                      </td>
-                      <td className="border-b border-zinc-100 py-3 pr-3 text-sm text-zinc-700">
-                        {a.candidate_email ? (
-                          <a
-                            href={`mailto:${a.candidate_email}`}
-                            className="font-medium text-blue-600 hover:underline"
-                          >
-                            {a.candidate_email}
-                          </a>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="border-b border-zinc-100 py-3 pr-3 text-sm text-zinc-700">
-                        {a.resume_filename ? (
-                          <a
-                            href={`/api/applications/${a.id}/resume`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-medium text-blue-600 hover:underline"
-                            title="View Resume"
-                          >
-                            {a.resume_filename}
-                          </a>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="border-b border-zinc-100 py-3 pr-3 text-sm text-zinc-700">
-                        {formatDate(a.created_at)}
-                      </td>
-                      <td className="border-b border-zinc-100 py-3 pr-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link
-                            href={`/applications/${a.id}`}
-                            className={`inline-flex items-center rounded-lg px-3 py-2 text-sm font-bold cursor-pointer transition-opacity hover:opacity-80 ${badge.className}`}
-                            title="Click to see matching skills"
-                          >
-                            {badge.text}%
-                          </Link>
-                          <Link
-                            href={`/applications/${a.id}`}
-                            className="inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
-                            title="Analyze resume"
-                          >
-                            Analyze
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteApplication(a.id)}
-                            className="inline-flex items-center rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-                            title="Delete application"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
+          {loadingApps ? (
+            <div className="py-6 text-sm text-zinc-600">Loading applications...</div>
+          ) : applications.length === 0 ? (
+            <div className="py-6 text-sm text-zinc-600">No applications yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-separate border-spacing-0">
+                <thead>
+                  <tr className="text-left text-xs font-medium text-zinc-600">
+                    <th className="border-b border-zinc-200 py-2 pr-3">Candidate</th>
+                    <th className="border-b border-zinc-200 py-2 pr-3">Email</th>
+                    <th className="border-b border-zinc-200 py-2 pr-3">File</th>
+                    <th className="border-b border-zinc-200 py-2 pr-3">Uploaded</th>
+                    <th className="border-b border-zinc-200 py-2 pr-3 text-right">Match Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {applications.map((a) => {
+                    const badge = scoreLabel(a.compatibility_score);
+                    return (
+                      <tr key={a.id} className="align-top">
+                        <td className="border-b border-zinc-100 py-3 pr-3">
+                          <div className="text-sm font-semibold text-zinc-900">
+                            {a.candidate_name || "Unknown"}
+                          </div>
+                        </td>
+                        <td className="border-b border-zinc-100 py-3 pr-3 text-sm text-zinc-700">
+                          {a.candidate_email ? (
+                            <a
+                              href={`mailto:${a.candidate_email}`}
+                              className="font-medium text-blue-600 hover:underline"
+                            >
+                              {a.candidate_email}
+                            </a>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="border-b border-zinc-100 py-3 pr-3 text-sm text-zinc-700">
+                          {a.resume_filename ? (
+                            <a
+                              href={`/api/applications/${a.id}/resume`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-blue-600 hover:underline"
+                              title="View Resume"
+                            >
+                              {a.resume_filename}
+                            </a>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="border-b border-zinc-100 py-3 pr-3 text-sm text-zinc-700">
+                          {formatDate(a.created_at)}
+                        </td>
+                        <td className="border-b border-zinc-100 py-3 pr-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Link
+                              href={`/applications/${a.id}`}
+                              className={`inline-flex items-center rounded-lg px-3 py-2 text-sm font-bold cursor-pointer transition-opacity hover:opacity-80 ${badge.className}`}
+                              title="Click to see matching skills"
+                            >
+                              {badge.text}%
+                            </Link>
+                            <Link
+                              href={`/applications/${a.id}`}
+                              className="inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+                              title="Analyze resume"
+                            >
+                              Analyze
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteApplication(a.id)}
+                              className="inline-flex items-center rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                              title="Delete application"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

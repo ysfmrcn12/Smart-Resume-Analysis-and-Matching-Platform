@@ -18,6 +18,11 @@ export default function JobsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [storedRole, setStoredRole] = useState<"hr" | "applicant">("hr");
+  const [urlRole, setUrlRole] = useState<"hr" | "applicant" | null>(null);
+
+  const role = urlRole ?? storedRole;
+  const isApplicantView = role === "applicant";
 
   async function refresh() {
     setError(null);
@@ -34,6 +39,19 @@ export default function JobsPage() {
 
   useEffect(() => {
     void refresh();
+  }, []);
+
+  useEffect(() => {
+    const savedRole = window.localStorage.getItem("sramp_user_role");
+    if (savedRole === "applicant" || savedRole === "hr") {
+      setStoredRole(savedRole);
+    }
+    const roleQueryParam = new URLSearchParams(window.location.search).get("role");
+    if (roleQueryParam === "applicant" || roleQueryParam === "hr") {
+      setUrlRole(roleQueryParam);
+      window.localStorage.setItem("sramp_user_role", roleQueryParam);
+      setStoredRole(roleQueryParam);
+    }
   }, []);
 
   useEffect(() => {
@@ -55,16 +73,20 @@ export default function JobsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-900">Jobs</h1>
+          <h1 className="text-2xl font-semibold text-zinc-900">
+            {isApplicantView ? "Open Positions" : "Jobs"}
+          </h1>
           <p className="mt-1 text-sm text-zinc-600">{rowCountLabel}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setCreateModalOpen(true)}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
-        >
-          Create Job
-        </button>
+        {isApplicantView ? null : (
+          <button
+            type="button"
+            onClick={() => setCreateModalOpen(true)}
+            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+          >
+            Create Job
+          </button>
+        )}
       </div>
 
       {createModalOpen && (
@@ -112,7 +134,7 @@ export default function JobsPage() {
                   <tr key={job.id} className="align-top">
                     <td className="border-b border-zinc-100 py-3 pr-3">
                       <Link
-                        href={`/jobs/${job.id}`}
+                        href={`/jobs/${job.id}?role=${role}`}
                         className="font-medium text-zinc-900 hover:underline"
                       >
                         {job.title}
@@ -130,23 +152,25 @@ export default function JobsPage() {
                     <td className="border-b border-zinc-100 py-3">
                       <div className="flex items-center gap-2">
                         <Link
-                          href={`/jobs/${job.id}`}
+                          href={`/jobs/${job.id}?role=${role}`}
                           className="rounded-md border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-900 hover:bg-zinc-50"
                         >
                           View
                         </Link>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const ok = window.confirm(`Delete job "${job.title}"?`);
-                            if (!ok) return;
-                            await deleteJob(job.id);
-                            await refresh();
-                          }}
-                          className="rounded-md bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700"
-                        >
-                          Delete
-                        </button>
+                        {isApplicantView ? null : (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const ok = window.confirm(`Delete job "${job.title}"?`);
+                              if (!ok) return;
+                              await deleteJob(job.id);
+                              await refresh();
+                            }}
+                            className="rounded-md bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700"
+                          >
+                            Delete
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

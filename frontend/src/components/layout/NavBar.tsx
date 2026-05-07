@@ -23,6 +23,9 @@ export default function NavBar() {
           <span className="text-lg font-semibold text-white">SRAMP</span>
         </Link>
         <nav className="flex items-center gap-4 text-sm text-white">
+          <Link href="/login" className="hover:text-zinc-100">
+            Login
+          </Link>
           <Link href="/jobs" className="hover:text-zinc-100">
             Jobs
           </Link>
