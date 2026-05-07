@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import type { Application, JobPosting } from "@/lib/api/types";
 import { deleteJob, getJob } from "@/lib/api/jobs";
 import { listApplications, rankApplications } from "@/lib/api/applications";
@@ -27,7 +27,6 @@ function scoreLabel(score: number) {
 
 export default function JobDetailsPage({ jobId }: { jobId: number }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [job, setJob] = useState<JobPosting | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
@@ -38,9 +37,9 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
   const [rankedMode, setRankedMode] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
   const [storedRole, setStoredRole] = useState<"hr" | "applicant">("hr");
+  const [urlRole, setUrlRole] = useState<"hr" | "applicant" | null>(null);
 
-  const roleParam = searchParams.get("role");
-  const role = roleParam === "applicant" || roleParam === "hr" ? roleParam : storedRole;
+  const role = urlRole ?? storedRole;
   const isApplicantView = role === "applicant";
 
   const refreshJobAndApplications = useCallback(async () => {
@@ -67,14 +66,13 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
     if (savedRole === "applicant" || savedRole === "hr") {
       setStoredRole(savedRole);
     }
-  }, []);
-
-  useEffect(() => {
-    if (roleParam === "applicant" || roleParam === "hr") {
-      window.localStorage.setItem("sramp_user_role", roleParam);
-      setStoredRole(roleParam);
+    const roleQueryParam = new URLSearchParams(window.location.search).get("role");
+    if (roleQueryParam === "applicant" || roleQueryParam === "hr") {
+      setUrlRole(roleQueryParam);
+      window.localStorage.setItem("sramp_user_role", roleQueryParam);
+      setStoredRole(roleQueryParam);
     }
-  }, [roleParam]);
+  }, []);
 
   useEffect(() => {
     if (!applyOpen) return;

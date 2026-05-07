@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import CreateJobForm from "./CreateJobForm";
 import type { JobPosting } from "@/lib/api/types";
 import { deleteJob, getJobs } from "@/lib/api/jobs";
@@ -15,15 +14,14 @@ function formatDate(value: string | null) {
 }
 
 export default function JobsPage() {
-  const searchParams = useSearchParams();
   const [jobs, setJobs] = useState<JobPosting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [storedRole, setStoredRole] = useState<"hr" | "applicant">("hr");
+  const [urlRole, setUrlRole] = useState<"hr" | "applicant" | null>(null);
 
-  const roleParam = searchParams.get("role");
-  const role = roleParam === "applicant" || roleParam === "hr" ? roleParam : storedRole;
+  const role = urlRole ?? storedRole;
   const isApplicantView = role === "applicant";
 
   async function refresh() {
@@ -48,14 +46,13 @@ export default function JobsPage() {
     if (savedRole === "applicant" || savedRole === "hr") {
       setStoredRole(savedRole);
     }
-  }, []);
-
-  useEffect(() => {
-    if (roleParam === "applicant" || roleParam === "hr") {
-      window.localStorage.setItem("sramp_user_role", roleParam);
-      setStoredRole(roleParam);
+    const roleQueryParam = new URLSearchParams(window.location.search).get("role");
+    if (roleQueryParam === "applicant" || roleQueryParam === "hr") {
+      setUrlRole(roleQueryParam);
+      window.localStorage.setItem("sramp_user_role", roleQueryParam);
+      setStoredRole(roleQueryParam);
     }
-  }, [roleParam]);
+  }, []);
 
   useEffect(() => {
     if (!createModalOpen) return;
