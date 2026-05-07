@@ -3,8 +3,18 @@ import math
 from typing import Dict, List, Tuple
 import os
 from pathlib import Path
+import warnings
 
-from sentence_transformers import SentenceTransformer, util
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+try:
+    from sentence_transformers import SentenceTransformer, util
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ModuleNotFoundError:
+    SentenceTransformer = None
+    util = None
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
 
 from app.nlp.preprocessing import TextPreprocessor
 from app.nlp.ner_extractor import NERExtractor
@@ -17,28 +27,45 @@ class MatchingEngine:
         """
         Initialize matching engine.
         """
-        # Determine which model to load with a clear priority
-        model_path_to_load = None
+        self.model = None
+        self.uses_semantic_model = False
 
-        # 1. Prioritize a fine-tuned model from .env
-        tuned_model_path_str = os.getenv('SEMANTIC_MODEL_PATH')
-        if tuned_model_path_str:
-            potential_path = Path(__file__).resolve().parent.parent.parent / tuned_model_path_str
-            if potential_path.exists():
-                model_path_to_load = str(potential_path)
-                print(f"INFO: Loading fine-tuned semantic model from: {model_path_to_load}")
-            else:
-                print(f"WARNING: SEMANTIC_MODEL_PATH is set but path not found: {potential_path}. Falling back.")
+        if SENTENCE_TRANSFORMERS_AVAILABLE:
+            # Determine which model to load with a clear priority
+            model_path_to_load = None
 
-        # 2. Fallback to a pre-downloaded base model
-        if not model_path_to_load:
-            local_path = Path(__file__).resolve().parent.parent.parent / "models" / model_name
-            if local_path.exists():
-                model_path_to_load = str(local_path)
-                print(f"INFO: Loading pre-downloaded base model: {model_path_to_load}")
+            # 1. Prioritize a fine-tuned model from .env
+            tuned_model_path_str = os.getenv('SEMANTIC_MODEL_PATH')
+            if tuned_model_path_str:
+                potential_path = Path(__file__).resolve().parent.parent.parent / tuned_model_path_str
+                if potential_path.exists():
+                    model_path_to_load = str(potential_path)
+                    print(f"INFO: Loading fine-tuned semantic model from: {model_path_to_load}")
+                else:
+                    print(f"WARNING: SEMANTIC_MODEL_PATH is set but path not found: {potential_path}. Falling back.")
 
-        # 3. If nothing is found locally, download from Hugging Face Hub
-        self.model = SentenceTransformer(model_path_to_load or model_name)
+            # 2. Fallback to a pre-downloaded base model
+            if not model_path_to_load:
+                local_path = Path(__file__).resolve().parent.parent.parent / "models" / model_name
+                if local_path.exists():
+                    model_path_to_load = str(local_path)
+                    print(f"INFO: Loading pre-downloaded base model: {model_path_to_load}")
+
+            # 3. If nothing is found locally, download from Hugging Face Hub
+            try:
+                self.model = SentenceTransformer(model_path_to_load or model_name)
+                self.uses_semantic_model = True
+            except Exception as exc:
+                warnings.warn(
+                    f"Could not initialize sentence-transformers model ({exc}). "
+                    "Falling back to TF-IDF similarity.",
+                    RuntimeWarning,
+                )
+        else:
+            warnings.warn(
+                "sentence-transformers is not installed. Falling back to TF-IDF similarity.",
+                RuntimeWarning,
+            )
 
         self.preprocessor = TextPreprocessor(lowercase=True, remove_stop_words=False)
         self.extractor = NERExtractor()
@@ -69,11 +96,20 @@ class MatchingEngine:
         calibrated = (raw_similarity - baseline) / 0.5
         return max(0.0, min(1.0, calibrated))
 
+    @staticmethod
+    def _compute_tfidf_similarity(job_processed: str, resume_processed: str) -> float:
+        """Compute lexical TF-IDF cosine similarity for one pair."""
+        vectorizer = TfidfVectorizer(ngram_range=(1, 2), min_df=1)
+        matrix = vectorizer.fit_transform([job_processed, resume_processed])
+        return float(cosine_similarity(matrix[0:1], matrix[1:2])[0][0])
+
     def _compute_semantic_similarity(self, job_processed: str, resume_processed: str) -> float:
-        """Compute raw semantic cosine similarity for one pair."""
-        emb1 = self.model.encode(job_processed, convert_to_tensor=True)
-        emb2 = self.model.encode(resume_processed, convert_to_tensor=True)
-        return float(util.cos_sim(emb1, emb2)[0][0])
+        """Compute sentence-level similarity for one pair."""
+        if self.uses_semantic_model and self.model is not None:
+            emb1 = self.model.encode(job_processed, convert_to_tensor=True)
+            emb2 = self.model.encode(resume_processed, convert_to_tensor=True)
+            return float(util.cos_sim(emb1, emb2)[0][0])
+        return self._compute_tfidf_similarity(job_processed, resume_processed)
 
     def _compute_skill_metrics(self, job_text: str, resume_text: str) -> Dict:
         """Extract skill overlap statistics and multiplier."""
@@ -175,7 +211,11 @@ class MatchingEngine:
 
         try:
             raw_semantic = self._compute_semantic_similarity(job_processed, resume_processed)
-            semantic_calibrated = self._calibrate_similarity(raw_semantic)
+            semantic_calibrated = (
+                self._calibrate_similarity(raw_semantic)
+                if self.uses_semantic_model
+                else self._clamp_float(raw_semantic)
+            )
         except Exception:
             raw_semantic = 0.0
             semantic_calibrated = 0.0
@@ -240,11 +280,16 @@ class MatchingEngine:
         ]
 
         try:
-            job_emb = self.model.encode(job_processed, convert_to_tensor=True)
-            resume_texts = [r[2] for r in resume_data]
-            resume_embs = self.model.encode(resume_texts, convert_to_tensor=True)
-            
-            raw_similarities = util.cos_sim(job_emb, resume_embs)[0].tolist()
+            if self.uses_semantic_model and self.model is not None:
+                job_emb = self.model.encode(job_processed, convert_to_tensor=True)
+                resume_texts = [r[2] for r in resume_data]
+                resume_embs = self.model.encode(resume_texts, convert_to_tensor=True)
+                raw_similarities = util.cos_sim(job_emb, resume_embs)[0].tolist()
+            else:
+                raw_similarities = [
+                    self._compute_tfidf_similarity(job_processed, resume_processed)
+                    for _, _, resume_processed in resume_data
+                ]
         except Exception:
             # Fallback if vectorization fails (e.g., all texts are empty)
             raw_similarities = [0.0] * len(resumes)
@@ -256,7 +301,11 @@ class MatchingEngine:
                 continue
 
             raw_semantic = raw_similarities[i]
-            semantic_calibrated = self._calibrate_similarity(raw_semantic)
+            semantic_calibrated = (
+                self._calibrate_similarity(raw_semantic)
+                if self.uses_semantic_model
+                else self._clamp_float(raw_semantic)
+            )
             base_score = semantic_calibrated
             skill_metrics = self._compute_skill_metrics(job_text, resume_text)
             exp_metrics = self._compute_experience_metrics(job_text, resume_text)

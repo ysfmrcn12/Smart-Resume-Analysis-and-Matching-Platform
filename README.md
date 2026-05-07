@@ -77,6 +77,9 @@ Optional (Transformer-based experiments):
 pip install -r requirements-transformers.txt
 ```
 
+If `sentence-transformers` is not installed, the backend now falls back to TF-IDF
+similarity scoring so the API can still start and process requests.
+
 Create `.env` (or use existing):
 
 ```
