@@ -10,7 +10,9 @@ import UploadResumeForm from "./UploadResumeForm";
 
 function formatDate(value: string | null) {
   if (!value) return "";
-  const d = new Date(value);
+  // Backend sends UTC timestamps without timezone; normalize to UTC for correct local display.
+  const normalized = /([zZ]|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}Z`;
+  const d = new Date(normalized);
   if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleString();
 }
@@ -201,19 +203,21 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
           )}
         </div>
 
-        <div className="mt-6 flex items-center justify-end">
-          <button
-            type="button"
-            onClick={() => setApplyOpen(true)}
-            className="rounded-lg bg-zinc-900 px-6 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
-          >
-            Apply for this job
-          </button>
-        </div>
+        {isApplicantView ? (
+          <div className="mt-6 flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setApplyOpen(true)}
+              className="rounded-lg bg-zinc-900 px-6 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+            >
+              Apply for this job
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {/* Apply Modal */}
-      {applyOpen && (
+      {isApplicantView && applyOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white shadow-lg">
             <button

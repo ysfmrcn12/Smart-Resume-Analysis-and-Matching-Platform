@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 export default function UploadResumeForm({
   jobId,
@@ -10,6 +10,7 @@ export default function UploadResumeForm({
   jobId: number;
   onUploaded: () => void | Promise<void>;
 }) {
+  const fileInputId = useId();
   const [files, setFiles] = useState<File[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
@@ -70,27 +71,33 @@ export default function UploadResumeForm({
       {error ? <div className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{error}</div> : null}
 
       <div className="grid grid-cols-1 gap-3">
-        <label className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1">
           <span className="text-sm font-medium text-zinc-800">Select Resumes (PDF, DOCX, TXT)</span>
+          <div className="flex items-center gap-3">
+            <label
+              htmlFor={fileInputId}
+              className="inline-flex cursor-pointer items-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+            >
+              Choose files
+            </label>
+            <span className="text-sm text-zinc-700">
+              {files.length > 0 ? `${files.length} file(s) selected` : "No files selected"}
+            </span>
+          </div>
           <input
+            id={fileInputId}
             type="file"
             multiple
             accept=".pdf,.docx,.txt"
             onChange={(e) => {
               setFiles(Array.from(e.target.files || []));
             }}
-            className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none file:mr-3 file:rounded-md file:border-0 file:bg-zinc-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+            className="sr-only"
           />
           <span className="text-xs text-zinc-500">
             Backend supports PDF, DOCX, and TXT.
           </span>
-        </label>
-
-        {files.length > 0 && (
-          <div className="text-sm font-medium text-zinc-700">
-            {files.length} file(s) selected
-          </div>
-        )}
+        </div>
 
         <button
           type="submit"
