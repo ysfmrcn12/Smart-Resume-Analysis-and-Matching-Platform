@@ -36,13 +36,17 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
   const [loading, setLoading] = useState(true);
   const [loadingApps, setLoadingApps] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [rankedMode, setRankedMode] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
   const [storedRole, setStoredRole] = useState<"hr" | "applicant">("hr");
-  const [urlRole, setUrlRole] = useState<"hr" | "applicant" | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  const role = urlRole ?? storedRole;
-  const isApplicantView = role === "applicant";
+  const role = storedRole;
+  const isHrView = isLoggedIn && role === "hr";
+  const isApplicantView = isLoggedIn && role === "applicant";
+  const isJobOwner = isHrView && job && String((job as any).user_id) === String(currentUserId);
 
   const refreshJobAndApplications = useCallback(async () => {
     setError(null);
@@ -68,12 +72,8 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
     if (savedRole === "applicant" || savedRole === "hr") {
       setStoredRole(savedRole);
     }
-    const roleQueryParam = new URLSearchParams(window.location.search).get("role");
-    if (roleQueryParam === "applicant" || roleQueryParam === "hr") {
-      setUrlRole(roleQueryParam);
-      window.localStorage.setItem("sramp_user_role", roleQueryParam);
-      setStoredRole(roleQueryParam);
-    }
+    setIsLoggedIn(!!window.localStorage.getItem("sramp_user_id"));
+    setCurrentUserId(window.localStorage.getItem("sramp_user_id"));
   }, []);
 
   useEffect(() => {
@@ -126,7 +126,7 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
     if (!ok) return;
 
     try {
-      const res = await fetch(`/api/applications/${appId}`, {
+      const res = await fetch(`/api/applications/${appId}?user_id=${currentUserId}`, {
         method: 'DELETE',
       });
       if (!res.ok) {
@@ -145,7 +145,7 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
   if (error || !job) {
     return (
       <div className="flex flex-col gap-3 py-6">
-        <Link href={`/jobs?role=${role}`} className="text-sm font-semibold text-zinc-700 hover:underline">
+        <Link href={`/jobs`} className="text-sm font-semibold text-zinc-700 hover:underline">
           Back to jobs
         </Link>
         {error ? <div className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
@@ -159,12 +159,18 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
       <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
         <div className="mb-4">
           <Link
-            href={`/jobs?role=${role}`}
+            href={`/jobs`}
             className="inline-flex items-center rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
           >
             ← Back to jobs
           </Link>
         </div>
+
+        {successMessage ? (
+          <div className="mb-4 rounded-md border border-green-200 bg-green-50 p-4 text-sm font-medium text-green-800">
+            {successMessage}
+          </div>
+        ) : null}
 
         <div className="flex items-start justify-between gap-6">
           <div className="flex-1">
@@ -186,28 +192,31 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
             ) : null}
           </div>
 
-          {isApplicantView ? null : (
+          {isJobOwner ? (
             <div className="flex flex-col gap-2">
               <button
                 type="button"
                 onClick={() => {
                   const ok = window.confirm(`Delete job "${job.title}"? This cannot be undone.`);
                   if (!ok) return;
-                  deleteJob(job.id).then(() => router.push(`/jobs?role=${role}`));
+                  deleteJob(job.id, currentUserId!).then(() => router.push(`/jobs`));
                 }}
                 className="rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
               >
                 Delete Job
               </button>
             </div>
-          )}
+          ) : null}
         </div>
 
         {isApplicantView ? (
           <div className="mt-6 flex items-center justify-end">
             <button
               type="button"
-              onClick={() => setApplyOpen(true)}
+              onClick={() => {
+                setSuccessMessage(null);
+                setApplyOpen(true);
+              }}
               className="rounded-lg bg-zinc-900 px-6 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
             >
               Apply for this job
@@ -232,6 +241,8 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
                 onUploaded={async () => {
                   await refreshApplicationsOnly();
                   setApplyOpen(false);
+                  setSuccessMessage("Your application has been submitted successfully!");
+                  setTimeout(() => setSuccessMessage(null), 5000); // Auto-hide after 5 seconds
                 }}
               />
             </div>
@@ -246,7 +257,14 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
             Applicant mode only allows job browsing and submission. HR-only ranking and candidate comparison is hidden.
           </p>
         </section>
-      ) : (
+      ) : isHrView && !isJobOwner ? (
+        <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <h2 className="text-base font-semibold text-zinc-900">Application Tracking</h2>
+          <p className="mt-2 text-sm text-zinc-600">
+            You can only view and manage applications for job postings you created.
+          </p>
+        </section>
+      ) : isJobOwner ? (
         <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -374,7 +392,7 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
             </div>
           )}
         </section>
-      )}
+      ) : null}
     </div>
   );
 }

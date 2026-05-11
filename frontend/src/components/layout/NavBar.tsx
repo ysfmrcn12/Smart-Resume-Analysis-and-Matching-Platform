@@ -1,7 +1,34 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
 export default function NavBar() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkAuth = () => {
+      setIsLoggedIn(!!window.localStorage.getItem("sramp_user_id"));
+      setUserRole(window.localStorage.getItem("sramp_user_role"));
+      setUserName(window.localStorage.getItem("sramp_user_name"));
+    };
+    
+    checkAuth();
+
+    window.addEventListener("auth-change", checkAuth);
+    return () => window.removeEventListener("auth-change", checkAuth);
+  }, []);
+
+  const handleLogout = () => {
+    window.localStorage.removeItem("sramp_user_id");
+    window.localStorage.removeItem("sramp_user_role");
+    window.localStorage.removeItem("sramp_user_name");
+    window.dispatchEvent(new Event("auth-change"));
+  };
+
   return (
     <header
       className="border-b border-zinc-200"
@@ -23,9 +50,20 @@ export default function NavBar() {
           <span className="text-lg font-semibold text-white">SRAMP</span>
         </Link>
         <nav className="flex items-center gap-4 text-sm text-white">
-          <Link href="/login" className="hover:text-zinc-100">
-            Login
-          </Link>
+          {!isLoggedIn ? (
+            <Link href="/login" className="hover:text-zinc-100 font-medium">
+              Login
+            </Link>
+          ) : (
+            <div className="flex items-center gap-4">
+              <Link href="/profile" className="text-zinc-100 opacity-90 hover:underline">
+                {userName ? `Hello, ${userName}` : "Profile"}
+              </Link>
+              <button onClick={handleLogout} className="hover:text-zinc-100 font-medium">
+                Logout
+              </button>
+            </div>
+          )}
           <Link href="/jobs" className="hover:text-zinc-100">
             Jobs
           </Link>
@@ -34,4 +72,3 @@ export default function NavBar() {
     </header>
   );
 }
-

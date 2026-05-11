@@ -2,7 +2,7 @@
 from flask import Blueprint, request, jsonify
 
 from app import db
-from app.models import JobPosting
+from app.models import JobPosting, User
 from app.nlp.ner_extractor import NERExtractor
 
 jobs_bp = Blueprint('jobs', __name__)
@@ -42,28 +42,34 @@ def create_job():
     """Create a new job posting."""
     data = request.get_json()
     if not data:
-        return jsonify({'error': 'No data provided'}), 400
+        return jsonify({'error': 'No input data provided'}), 400
 
-    required = ['title', 'description']
-    for field in required:
-        if not data.get(field):
-            return jsonify({'error': f'Missing required field: {field}'}), 400
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'user_id is required to create a job'}), 400
 
-    # Auto-extract requirements from description if none are provided
-    requirements = data.get('requirements', []) or []
-    if not requirements and data.get('description'):
-        requirements = ner_extractor.extract_skills(data['description'])
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    if user.role != 'hr':
+        return jsonify({'error': 'Only HR users can create jobs'}), 403
 
-    job = JobPosting(
-        title=_truncate_str(data['title'], TITLE_MAX_LENGTH),
+    if not data.get('title') or not data.get('description'):
+        return jsonify({'error': 'Title and description are required fields'}), 400
+
+    new_job = JobPosting(
+        title=data['title'],
         description=data['description'],
-        requirements=requirements,
-        company=_truncate_str(data.get('company', ''), COMPANY_MAX_LENGTH),
-        location=_truncate_str(data.get('location', ''), LOCATION_MAX_LENGTH),
+        requirements=data.get('requirements', []),
+        company=user.company,  # Automatically set company from HR user
+        location=data.get('location'),
+        user_id=user.id
     )
-    db.session.add(job)
+    db.session.add(new_job)
     db.session.commit()
-    return jsonify(job.to_dict()), 201
+
+    return jsonify(new_job.to_dict()), 201
 
 
 @jobs_bp.route('/<int:job_id>', methods=['PUT'])
@@ -93,6 +99,10 @@ def update_job(job_id):
 def delete_job(job_id):
     """Delete a job posting."""
     job = JobPosting.query.get_or_404(job_id)
+    user_id = request.args.get('user_id')
+    if not user_id or str(job.user_id) != str(user_id):
+        return jsonify({'error': 'Unauthorized: Only the creator can delete this job.'}), 403
+        
     db.session.delete(job)
     db.session.commit()
     return '', 204

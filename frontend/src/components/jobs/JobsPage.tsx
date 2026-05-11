@@ -19,10 +19,11 @@ export default function JobsPage() {
   const [error, setError] = useState<string | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [storedRole, setStoredRole] = useState<"hr" | "applicant">("hr");
-  const [urlRole, setUrlRole] = useState<"hr" | "applicant" | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  const role = urlRole ?? storedRole;
-  const isApplicantView = role === "applicant";
+  const role = storedRole;
+  const isHrView = isLoggedIn && role === "hr";
 
   async function refresh() {
     setError(null);
@@ -46,12 +47,8 @@ export default function JobsPage() {
     if (savedRole === "applicant" || savedRole === "hr") {
       setStoredRole(savedRole);
     }
-    const roleQueryParam = new URLSearchParams(window.location.search).get("role");
-    if (roleQueryParam === "applicant" || roleQueryParam === "hr") {
-      setUrlRole(roleQueryParam);
-      window.localStorage.setItem("sramp_user_role", roleQueryParam);
-      setStoredRole(roleQueryParam);
-    }
+    setIsLoggedIn(!!window.localStorage.getItem("sramp_user_id"));
+    setCurrentUserId(window.localStorage.getItem("sramp_user_id"));
   }, []);
 
   useEffect(() => {
@@ -74,11 +71,11 @@ export default function JobsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-900">
-            {isApplicantView ? "Open Positions" : "Jobs"}
+            {isHrView ? "Jobs" : "Open Positions"}
           </h1>
           <p className="mt-1 text-sm text-zinc-600">{rowCountLabel}</p>
         </div>
-        {isApplicantView ? null : (
+        {isHrView ? (
           <button
             type="button"
             onClick={() => setCreateModalOpen(true)}
@@ -86,7 +83,7 @@ export default function JobsPage() {
           >
             Create Job
           </button>
-        )}
+        ) : null}
       </div>
 
       {createModalOpen && (
@@ -134,7 +131,7 @@ export default function JobsPage() {
                   <tr key={job.id} className="align-top">
                     <td className="border-b border-zinc-100 py-3 pr-3">
                       <Link
-                        href={`/jobs/${job.id}?role=${role}`}
+                      href={`/jobs/${job.id}`}
                         className="font-medium text-zinc-900 hover:underline"
                       >
                         {job.title}
@@ -152,25 +149,25 @@ export default function JobsPage() {
                     <td className="border-b border-zinc-100 py-3">
                       <div className="flex items-center gap-2">
                         <Link
-                          href={`/jobs/${job.id}?role=${role}`}
+                        href={`/jobs/${job.id}`}
                           className="rounded-md border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-900 hover:bg-zinc-50"
                         >
                           View
                         </Link>
-                        {isApplicantView ? null : (
+                        {isHrView && String((job as any).user_id) === String(currentUserId) ? (
                           <button
                             type="button"
                             onClick={async () => {
                               const ok = window.confirm(`Delete job "${job.title}"?`);
                               if (!ok) return;
-                              await deleteJob(job.id);
+                              await deleteJob(job.id, currentUserId!);
                               await refresh();
                             }}
                             className="rounded-md bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700"
                           >
                             Delete
                           </button>
-                        )}
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -183,4 +180,3 @@ export default function JobsPage() {
     </div>
   );
 }
-

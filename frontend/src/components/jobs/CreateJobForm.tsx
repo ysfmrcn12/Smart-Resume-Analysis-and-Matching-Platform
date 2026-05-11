@@ -14,12 +14,17 @@ export default function CreateJobForm({
   const [description, setDescription] = useState("");
   const [requirements, setRequirements] = useState<string[]>([]);
   const [requirementInput, setRequirementInput] = useState("");
-  const [company, setCompany] = useState("");
   const [location, setLocation] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const uid = window.localStorage.getItem("sramp_user_id");
+    if (uid) setUserId(uid);
+  }, []);
 
   function fillMockData() {
     setError(null);
@@ -28,7 +33,6 @@ export default function CreateJobForm({
       "Build accessible UI components, improve performance, and collaborate with design and backend teams.",
     );
     setRequirements(["React", "TypeScript", "Accessibility", "Performance Tuning"]);
-    setCompany("Acme Labs");
     setLocation("Remote");
   }
 
@@ -48,21 +52,25 @@ export default function CreateJobForm({
       return;
     }
 
+    if (!userId) {
+      setError("You must be logged in as an HR user to create a job.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload: JobCreateInput = {
         title: title.trim(),
         description: description.trim(),
         requirements: requirements.filter((r) => r.trim().length > 0) || undefined,
-        company: company.trim() || undefined,
         location: location.trim() || undefined,
       };
-      await createJob(payload);
+      // Assumes `createJob` in `lib/api/jobs.ts` is updated to take userId
+      await createJob(payload, userId);
       setTitle("");
       setDescription("");
       setRequirements([]);
       setRequirementInput("");
-      setCompany("");
       setLocation("");
       await onCreated();
     } catch (err) {
@@ -172,25 +180,14 @@ export default function CreateJobForm({
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-zinc-800">Company</span>
-            <input
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
-            />
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-zinc-800">Location</span>
-            <input
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
-            />
-          </label>
-        </div>
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-zinc-800">Location</span>
+          <input
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
+          />
+        </label>
 
         <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
           <button

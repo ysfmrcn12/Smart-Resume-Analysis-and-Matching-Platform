@@ -86,25 +86,36 @@ def upload_resume(job_id):
     """
     job = JobPosting.query.get_or_404(job_id)
 
-    if 'resume' not in request.files and 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-
-    file = request.files.get('resume') or request.files.get('file')
-    if not file or file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-
-    if not ResumeParser.is_supported(file.filename):
-        return jsonify({
-            'error': 'Unsupported format. Use PDF, DOCX, or TXT.'
-        }), 400
-
+    cv_id = request.form.get('cv_id')
+    user_id = request.form.get('user_id')
+    
+    filepath = None
+    filename = None
+    is_temp_file = True
     upload_folder = get_upload_folder()
-    ext = os.path.splitext(file.filename)[1].lower()
-    safe_filename = f"{uuid.uuid4().hex}{ext}"
-    filepath = os.path.join(upload_folder, safe_filename)
+    
+    if cv_id and user_id:
+        from app.models import UserCV
+        cv = UserCV.query.filter_by(id=cv_id, user_id=user_id).first()
+        if not cv:
+            return jsonify({'error': 'CV not found'}), 404
+        filepath = cv.filepath
+        filename = cv.filename
+        is_temp_file = False
+    else:
+        file = request.files.get('resume') or request.files.get('file')
+        if not file or file.filename == '':
+            return jsonify({'error': 'No file selected or CV not specified'}), 400
+        if not ResumeParser.is_supported(file.filename):
+            return jsonify({'error': 'Unsupported format. Use PDF, DOCX, or TXT.'}), 400
+        filename = file.filename
+        ext = os.path.splitext(file.filename)[1].lower()
+        safe_filename = f"{uuid.uuid4().hex}{ext}"
+        filepath = os.path.join(upload_folder, safe_filename)
 
     try:
-        file.save(filepath)
+        if is_temp_file:
+            file.save(filepath)
         parsed = resume_parser.parse(filepath)
         resume_text = parsed['text']
         contact = parsed.get('contact_info') or {}
@@ -131,7 +142,7 @@ def upload_resume(job_id):
             candidate_name=request.form.get('candidate_name') or contact.get('email', 'Unknown'),
             candidate_email=request.form.get('candidate_email') or contact.get('email', ''),
             resume_text=resume_text,
-            resume_filename=file.filename,
+            resume_filename=filename,
             compatibility_score=score,
             extracted_skills=extracted['skills'],
             extracted_experience=extracted['experience'],
@@ -139,7 +150,7 @@ def upload_resume(job_id):
         db.session.add(application)
         db.session.commit()
 
-        # Keep a permanent copy of the file named with the application ID
+        ext = os.path.splitext(filename)[1].lower()
         permanent_filepath = os.path.join(upload_folder, f"app_{application.id}{ext}")
         shutil.copy2(filepath, permanent_filepath)
 
@@ -149,7 +160,7 @@ def upload_resume(job_id):
     except Exception as e:
         return jsonify({'error': f'Processing failed: {str(e)}'}), 500
     finally:
-        if os.path.exists(filepath):
+        if is_temp_file and filepath and os.path.exists(filepath):
             try:
                 os.remove(filepath)
             except OSError:
@@ -261,6 +272,11 @@ def download_resume(app_id):
 def delete_application(app_id):
     """Delete an application."""
     app = Application.query.get_or_404(app_id)
+    job = JobPosting.query.get_or_404(app.job_posting_id)
+    user_id = request.args.get('user_id')
+    if not user_id or str(job.user_id) != str(user_id):
+        return jsonify({'error': 'Unauthorized: Only the job creator can delete applications.'}), 403
+
     db.session.delete(app)
     db.session.commit()
 
