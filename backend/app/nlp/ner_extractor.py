@@ -5,6 +5,16 @@ import json
 from pathlib import Path
 from typing import Dict, List
 
+from app.nlp.nlp_terms import (
+    SKILL_HEADERS,
+    EXPERIENCE_HEADERS,
+    SKILL_ALIASES,
+    TECH_PATTERNS,
+    NEGATION_WORDS,
+    GENERIC_WORDS,
+    NOISE_KEYWORDS
+)
+
 
 class NERExtractor:
     """Extract skills and experience using spaCy NER."""
@@ -16,19 +26,6 @@ class NERExtractor:
     GPE_LABEL = 'GPE'
     SKILL_LABEL = 'SKILL'
     WORK_OF_ART = 'WORK_OF_ART'
-
-    # Common skill section headers
-    SKILL_HEADERS = [
-        'skills', 'technical skills', 'core competencies', 'expertise',
-        'technologies', 'tools', 'programming languages', 'key skills',
-        'professional skills', 'summary of skills', 'competencies', 'experience'
-    ]
-
-    # Common experience section headers
-    EXPERIENCE_HEADERS = [
-        'experience', 'work experience', 'employment', 'professional experience',
-        'career', 'work history', 'employment history'
-    ]
 
     def __init__(self, model_name: str = None):
         self._nlp = None
@@ -105,7 +102,7 @@ class NERExtractor:
                 start = idx + len(header)
                 rest = text[start:start + 5000]
                 # Stop at next common section (exclude current header)
-                other_headers = [h for h in self.SKILL_HEADERS + self.EXPERIENCE_HEADERS + ['education', 'summary', 'objective', 'references'] if h != header]
+                other_headers = [h for h in SKILL_HEADERS + EXPERIENCE_HEADERS + ['education', 'summary', 'objective', 'references'] if h != header]
                 for oh in other_headers:
                     pos = rest.lower().find('\n' + oh)
                     if pos >= 0:
@@ -120,12 +117,8 @@ class NERExtractor:
         # Pad with a space so we can match whole words easily
         preceding_text = re.sub(r'\s+', ' ', preceding_text)
         preceding_text = " " + preceding_text
-        
-        negation_words = [
-            ' no ', ' not ', ' lack ', ' lacking ', ' without ', 
-            ' bad at ', ' poor ', ' zero ', ' limited ', ' basic ', ' none '
-        ]
-        return any(neg in preceding_text for neg in negation_words)
+
+        return any(neg in preceding_text for neg in NEGATION_WORDS)
 
     def extract_skills(self, text: str) -> List[str]:
         """
@@ -138,16 +131,8 @@ class NERExtractor:
         """
         skills = set()
 
-        # Common tech skills pattern
-        tech_patterns = [
-            r'\b(python|java|javascript|typescript|c\+\+|c#|ruby|go|rust|php|swift|kotlin|ios|android)\b',
-            r'\b(react|angular|vue|node\.?js|django|flask|spring|express|uikit|swiftui)\b',
-            r'\b(sql|mysql|postgresql|mongodb|redis|aws|docker|kubernetes|git|jenkins|ci/cd)\b',
-            r'\b(machine learning|nlp|data science|tensorflow|pytorch|pandas|numpy)\b',
-            r'\b(html|css|rest api|restful|json|graphql|agile|scrum|jira)\b',
-        ]
         full_text = text.lower()
-        for pattern in tech_patterns:
+        for pattern in TECH_PATTERNS:
             # Use finditer instead of findall so we know EXACTLY where the word is
             for match in re.finditer(pattern, full_text, re.IGNORECASE):
                 if not self._is_negated(full_text, match.start()):
@@ -177,14 +162,6 @@ class NERExtractor:
         # Normalize whitespace and casing (keeps matching consistent across job/resume).
         normalized = set()
         
-        # Filter out generic words that the base model sometimes grabs by mistake
-        generic_words = {
-            'hands', 'managing', 'working', 'using', 'familiar', 'data', 'big', 'machine', 'learning', 'skill', 'skills',
-            'plus', 'party', 'coding', 'development', 'developer', 'design', 'integration', 'application', 'business', 
-            'analytical', 'quality', 'analysis', 'solutions', 'tool', 'tools', 'environment', 'team', 'degree', 'ms', 'bs'
-        }
-        noise_keywords = {'experience', 'experienced', 'knowledge', 'understanding', 'proficiency', 'familiarity', 'ability', 'years'}
-        
         for s in skills:
             # Clean whitespace and strip trailing/leading punctuation
             s2 = re.sub(r"\s+", " ", str(s)).strip().lower()
@@ -193,12 +170,15 @@ class NERExtractor:
             if not s2 or len(s2.split()) > 3:
                 continue
                 
-            if s2 in generic_words:
+            if s2 in GENERIC_WORDS:
                 continue
                 
             # Filter out phrases containing noise words (e.g. "professional experience"), except valid terms
-            if any(noise in s2.split() for noise in noise_keywords) and s2 not in ['user experience', 'customer experience']:
+            if any(noise in s2.split() for noise in NOISE_KEYWORDS) and s2 not in ['user experience', 'customer experience']:
                 continue
+
+            # Apply alias mapping to standardize skill names (e.g., html5 -> html)
+            s2 = SKILL_ALIASES.get(s2, s2)
 
             normalized.add(s2)
 
@@ -224,7 +204,7 @@ class NERExtractor:
                     pass
 
         # 2. Look for year ranges in the experience section
-        exp_section = self._extract_section_content(text, self.EXPERIENCE_HEADERS)
+        exp_section = self._extract_section_content(text, EXPERIENCE_HEADERS)
         if exp_section:
             years = [int(y) for y in re.findall(r'\b(19[8-9]\d|20[0-2]\d)\b', exp_section)]
             if years:
@@ -246,7 +226,7 @@ class NERExtractor:
         experience = []
         entities = self.extract_entities(text)
 
-        exp_section = self._extract_section_content(text, self.EXPERIENCE_HEADERS)
+        exp_section = self._extract_section_content(text, EXPERIENCE_HEADERS)
         if not exp_section:
             exp_section = text  # Fallback to full text
 

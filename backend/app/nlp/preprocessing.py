@@ -3,32 +3,11 @@ import re
 import string
 from typing import List
 
+from app.nlp.nlp_terms import STOP_WORDS
+
 
 class TextPreprocessor:
     """Preprocesses text for NLP tasks: normalization, tokenization, cleaning."""
-
-    # Common stop words for resume context
-    STOP_WORDS = {
-        'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-        'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been',
-        'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
-        'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need',
-        'dare', 'ought', 'used', 'i', 'me', 'my', 'myself', 'we', 'our',
-        'ours', 'ourselves', 'you', 'your', 'yours', 'yourself', 'yourselves',
-        'he', 'him', 'his', 'himself', 'she', 'her', 'hers', 'herself',
-        'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 'themselves',
-        'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those',
-        'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have',
-        'has', 'had', 'having', 'do', 'does', 'did', 'doing', 'would',
-        'could', 'ought', 'i', 'me', 'my', 'myself', 'we', 'our', 'ours',
-        'into', 'onto', 'upon', 'about', 'above', 'below', 'under', 'over',
-        'out', 'through', 'during', 'before', 'after', 'then', 'once', 'here',
-        'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each',
-        # Domain-specific noise words to ignore for scoring and highlighting
-        'experience', 'experienced', 'skill', 'skills', 'year', 'years', 'knowledge',
-        'ability', 'proficient', 'proficiency', 'familiar', 'familiarity', 'working',
-        'using', 'required', 'requirements', 'responsibilities', 'responsibility'
-    }
 
     def __init__(self, lowercase: bool = True, remove_stop_words: bool = False):
         """
@@ -69,7 +48,7 @@ class TextPreprocessor:
         text = self.remove_special_chars(text)
         tokens = text.split()
         if self.remove_stop_words:
-            tokens = [t for t in tokens if t not in self.STOP_WORDS]
+            tokens = [t for t in tokens if t not in STOP_WORDS]
         return tokens
 
     def preprocess_for_tfidf(self, text: str) -> str:
