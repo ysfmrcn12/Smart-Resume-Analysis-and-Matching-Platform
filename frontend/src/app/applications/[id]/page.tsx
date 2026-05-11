@@ -143,28 +143,39 @@ export default function ApplicationDetailsPage() {
 
       <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
-          <div className="text-sm font-semibold text-zinc-900">Required Skills Checklist</div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {data.job_skills && data.job_skills.length > 0 ? (
-              data.job_skills.map((skill: string) => {
-                const isMatched = data.matched_skills.includes(skill);
-                return (
-                  <span
-                    key={skill}
-                    className={`rounded-full px-3 py-1 text-xs font-medium border ${
-                      isMatched
-                        ? "bg-green-100 text-green-800 border-green-200"
-                        : "bg-red-50 text-red-700 border-red-200"
-                    }`}
-                  >
-                    {skill}
-                  </span>
-                );
-              })
-            ) : (
-              <span className="text-xs text-zinc-500">No specific skills detected in job description.</span>
-            )}
-          </div>
+          <div className="mb-3 text-sm font-semibold text-zinc-900">Required Skills Checklist</div>
+          {data.job_skills && data.job_skills.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <div className="mb-2 text-xs font-medium uppercase text-zinc-500">Matched</div>
+                <div className="flex flex-wrap gap-2">
+                  {data.job_skills.filter((s: string) => data.matched_skills.includes(s)).map((skill: string) => (
+                    <span key={skill} className="rounded-full border border-green-200 bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
+                      {skill}
+                    </span>
+                  ))}
+                  {data.job_skills.filter((s: string) => data.matched_skills.includes(s)).length === 0 && (
+                    <span className="text-xs text-zinc-400">None</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <div className="mb-2 text-xs font-medium uppercase text-zinc-500">Missing</div>
+                <div className="flex flex-wrap gap-2">
+                  {data.job_skills.filter((s: string) => !data.matched_skills.includes(s)).map((skill: string) => (
+                    <span key={skill} className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
+                      {skill}
+                    </span>
+                  ))}
+                  {data.job_skills.filter((s: string) => !data.matched_skills.includes(s)).length === 0 && (
+                    <span className="text-xs text-zinc-400">None</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <span className="text-xs text-zinc-500">No specific skills detected in job description.</span>
+          )}
         </div>
 
         <div className="rounded-lg border border-zinc-200 bg-white p-4">

@@ -42,11 +42,11 @@ def _extract_keyword_overlap(job_text: str, resume_text: str, max_terms: int = 2
     """Find lexical overlaps between job and resume after preprocessing."""
     job_tokens = {
         t for t in preprocessor.tokenize(job_text)
-        if len(t) >= 3 and not t.isdigit()
+        if len(t) >= 2 and not t.isdigit()
     }
     resume_tokens = {
         t for t in preprocessor.tokenize(resume_text)
-        if len(t) >= 3 and not t.isdigit()
+        if len(t) >= 2 and not t.isdigit()
     }
     overlap = sorted(job_tokens.intersection(resume_tokens))
     return overlap[:max_terms]

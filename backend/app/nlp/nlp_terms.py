@@ -34,8 +34,8 @@ TECH_PATTERNS = [
     r'\b(python|java|javascript|typescript|c\+\+|c#|ruby|go|rust|php|swift|kotlin|ios|android)\b',
     r'\b(react(?:\.?js)?|angular(?:\.?js)?|vue(?:\.?js)?|node\.?js|django|flask|spring|express|uikit|swiftui)\b',
     r'\b(sql|mysql|postgresql|postgres|mongodb|redis|aws|docker|kubernetes|k8s|git|jenkins|ci/cd)\b',
-    r'\b(machine learning|ml|nlp|data science|tensorflow|pytorch|pandas|numpy)\b',
-    r'\b(html5?|css3?|rest api|restful|json|graphql|agile|scrum|jira)\b',
+    r'\b(machine learning|ml|nlp|data science|tensorflow|pytorch|pandas|numpy|ai)\b',
+    r'\b(html5?|css3?|rest api|restful|json|graphql|agile|scrum|jira|ui|ux|ui/ux|ux/ui|qa)\b',
 ]
 
 NEGATION_WORDS = [
@@ -47,7 +47,7 @@ GENERIC_WORDS = {
     'hands', 'managing', 'working', 'using', 'familiar', 'data', 'big', 'machine', 'learning', 'skill', 'skills',
     'plus', 'party', 'coding', 'development', 'developer', 'design', 'integration', 'application', 'business', 
     'analytical', 'quality', 'analysis', 'solutions', 'tool', 'tools', 'environment', 'team', 'degree', 'ms', 'bs',
-    'language', 'languages'
+    'language', 'languages', 'professional', 'ensure', 'education', 'new'
 }
 
 NOISE_KEYWORDS = {
@@ -73,5 +73,6 @@ STOP_WORDS = {
     # Domain-specific noise words to ignore for scoring and highlighting
     'experience', 'experienced', 'skill', 'skills', 'year', 'years', 'knowledge',
     'ability', 'proficient', 'proficiency', 'familiar', 'familiarity', 'working',
-    'using', 'required', 'requirements', 'responsibilities', 'responsibility'
+    'using', 'required', 'requirements', 'responsibilities', 'responsibility',
+    'professional', 'ensure', 'education', 'new'
 }

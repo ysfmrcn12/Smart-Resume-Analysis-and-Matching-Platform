@@ -1,9 +1,13 @@
 import type { NextConfig } from "next";
+import path from 'path';
 
 const nextConfig = {
   reactCompiler: true,
   // Allow HMR and dev server access from your local network IP
-  allowedDevOrigins: ["192.168.0.16"],
+  turbopack: {
+    // We set the root to the directory where next.config.ts is located (__dirname)
+    root: path.join(__dirname),
+  },
   async rewrites() {
     // Proxy frontend `/api/*` calls to the Flask backend.
     return [
