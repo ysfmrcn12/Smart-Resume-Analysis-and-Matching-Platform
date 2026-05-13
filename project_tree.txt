@@ -1,0 +1,201 @@
+.
+├── .gitignore
+├── README.md
+├── agent.md
+├── backend
+│   ├── .env
+│   ├── .gitignore
+│   ├── app
+│   │   ├── __init__.py
+│   │   ├── models.py
+│   │   ├── nlp
+│   │   │   ├── __init__.py
+│   │   │   ├── matching_engine.py
+│   │   │   ├── ner_extractor.py
+│   │   │   ├── nlp_terms.py
+│   │   │   ├── preprocessing.py
+│   │   │   ├── resume_parser.py
+│   │   │   ├── section_classifier.py
+│   │   │   └── train_semantic_search.py
+│   │   └── routes
+│   │       ├── __init__.py
+│   │       ├── applications.py
+│   │       ├── auth.py
+│   │       ├── jobs.py
+│   │       ├── nlp.py
+│   │       ├── page.tsx
+│   │       └── users.py
+│   ├── config.py
+│   ├── download_models.py
+│   ├── models
+│   │   ├── all-MiniLM-L6-v2
+│   │   │   ├── 1_Pooling
+│   │   │   │   └── config.json
+│   │   │   ├── README.md
+│   │   │   ├── config.json
+│   │   │   ├── config_sentence_transformers.json
+│   │   │   ├── model.safetensors
+│   │   │   ├── modules.json
+│   │   │   ├── sentence_bert_config.json
+│   │   │   ├── tokenizer.json
+│   │   │   └── tokenizer_config.json
+│   │   └── en_core_web_sm
+│   │       ├── attribute_ruler
+│   │       │   └── patterns
+│   │       ├── config.cfg
+│   │       ├── lemmatizer
+│   │       │   └── lookups
+│   │       │       └── lookups.bin
+│   │       ├── meta.json
+│   │       ├── ner
+│   │       │   ├── cfg
+│   │       │   ├── model
+│   │       │   └── moves
+│   │       ├── parser
+│   │       │   ├── cfg
+│   │       │   ├── model
+│   │       │   └── moves
+│   │       ├── senter
+│   │       │   ├── cfg
+│   │       │   └── model
+│   │       ├── tagger
+│   │       │   ├── cfg
+│   │       │   └── model
+│   │       ├── tok2vec
+│   │       │   ├── cfg
+│   │       │   └── model
+│   │       ├── tokenizer
+│   │       └── vocab
+│   │           ├── key2row
+│   │           ├── lookups.bin
+│   │           ├── strings.json
+│   │           ├── vectors
+│   │           └── vectors.cfg
+│   ├── pytest.ini
+│   ├── requirements-transformers.txt
+│   ├── requirements.txt
+│   ├── run.py
+│   ├── tests
+│   │   ├── conftest.py
+│   │   ├── test_nlp.py
+│   │   ├── test_relevance_filtering.py
+│   │   ├── test_resume_parser.py
+│   │   └── test_sample_datasets.py
+│   └── training
+│       ├── README.md
+│       ├── build_skills_db.py
+│       ├── config.cfg
+│       ├── custom_ner_model
+│       │   ├── attribute_ruler
+│       │   │   └── patterns
+│       │   ├── config.cfg
+│       │   ├── lemmatizer
+│       │   │   └── lookups
+│       │   │       └── lookups.bin
+│       │   ├── meta.json
+│       │   ├── ner
+│       │   │   ├── cfg
+│       │   │   ├── model
+│       │   │   └── moves
+│       │   ├── parser
+│       │   │   ├── cfg
+│       │   │   ├── model
+│       │   │   └── moves
+│       │   ├── senter
+│       │   │   ├── cfg
+│       │   │   └── model
+│       │   ├── tagger
+│       │   │   ├── cfg
+│       │   │   └── model
+│       │   ├── tok2vec
+│       │   │   ├── cfg
+│       │   │   └── model
+│       │   ├── tokenizer
+│       │   └── vocab
+│       │       ├── key2row
+│       │       ├── lookups.bin
+│       │       ├── strings.json
+│       │       ├── vectors
+│       │       └── vectors.cfg
+│       ├── prepare_ner_data.py
+│       ├── resume_dataset.csv
+│       ├── skills_ner.jsonl
+│       ├── train_ner.py
+│       └── train_section_classifier.py
+├── docs
+│   ├── API_DOCUMENTATION.md
+│   ├── DATASETS.md
+│   └── LITERATURE_RESEARCH.md
+├── frontend
+│   ├── .gitignore
+│   ├── AGENTS.md
+│   ├── CLAUDE.md
+│   ├── README.md
+│   ├── eslint.config.mjs
+│   ├── next-env.d.ts
+│   ├── next.config.ts
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── postcss.config.mjs
+│   ├── public
+│   │   ├── favicon.ico
+│   │   ├── favicons
+│   │   │   ├── android-chrome-192x192.png
+│   │   │   ├── android-chrome-512x512.png
+│   │   │   ├── apple-touch-icon.png
+│   │   │   ├── favicon-16x16.png
+│   │   │   ├── favicon-32x32.png
+│   │   │   ├── favicon.ico
+│   │   │   └── site.webmanifest
+│   │   ├── file.svg
+│   │   ├── globe.svg
+│   │   ├── next.svg
+│   │   ├── resume_job_pipeline.html
+│   │   ├── sramp.png
+│   │   ├── vercel.svg
+│   │   └── window.svg
+│   ├── src
+│   │   ├── app
+│   │   │   ├── applications
+│   │   │   │   └── [id]
+│   │   │   │       └── page.tsx
+│   │   │   ├── globals.css
+│   │   │   ├── jobs
+│   │   │   │   ├── [id]
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── layout.tsx
+│   │   │   ├── login
+│   │   │   │   └── page.tsx
+│   │   │   ├── page.tsx
+│   │   │   └── profile
+│   │   │       └── page.tsx
+│   │   ├── components
+│   │   │   ├── jobs
+│   │   │   │   ├── CreateJobForm.tsx
+│   │   │   │   ├── JobDetailsPage.tsx
+│   │   │   │   ├── JobEditForm.tsx
+│   │   │   │   ├── JobsPage.tsx
+│   │   │   │   ├── ResumeHighlightModal.tsx
+│   │   │   │   ├── UploadResumeForm.tsx
+│   │   │   │   └── page.tsx
+│   │   │   └── layout
+│   │   │       └── NavBar.tsx
+│   │   └── lib
+│   │       └── api
+│   │           ├── applications.ts
+│   │           ├── config.ts
+│   │           ├── http.ts
+│   │           ├── jobs.ts
+│   │           └── types.ts
+│   └── tsconfig.json
+├── project_tree.txt
+├── scripts
+│   ├── debug_similarity.py
+│   ├── download_kaggle_resumes.ps1
+│   ├── list_routes.py
+│   ├── setup.bat
+│   └── setup.sh
+└── start_backend.bat
+
+150 directories, 9060 files
