@@ -14,6 +14,7 @@ export default function UploadResumeForm({
 }) {
   const fileInputId = useId();
   const [files, setFiles] = useState<File[]>([]);
+  const [candidateName, setCandidateName] = useState("");
 
   const [userId, setUserId] = useState<string | null>(null);
   const [savedCvs, setSavedCvs] = useState<{ id: number; filename: string }[]>([]);
@@ -22,6 +23,12 @@ export default function UploadResumeForm({
   useEffect(() => {
     const uid = window.localStorage.getItem("sramp_user_id");
     if (uid) {
+      // Pre-fill name for applicants if it's in local storage
+      const uName = window.localStorage.getItem("sramp_user_name");
+      if (uName && !isHr) {
+        setCandidateName(uName);
+      }
+
       setUserId(uid);
       fetch(`/api/users/${uid}/cvs`)
         .then(res => {
@@ -44,7 +51,7 @@ export default function UploadResumeForm({
     setError(null);
 
     if (files.length === 0 && !selectedCvId) {
-      setError(isHr ? "Please select at least one file." : "Please select a saved CV or upload at least one file.");
+      setError(isHr ? "Please select at least one file." : "Please select a saved CV or upload a new file.");
       return;
     }
 
@@ -55,6 +62,7 @@ export default function UploadResumeForm({
         const formData = new FormData();
         formData.append("cv_id", selectedCvId);
         formData.append("user_id", userId);
+        if (candidateName) formData.append("candidate_name", candidateName);
 
         const res = await fetch(`/api/applications/job/${jobId}/upload`, {
           method: "POST",
@@ -90,6 +98,7 @@ export default function UploadResumeForm({
             const formData = new FormData();
             formData.append("file", files[i]);
             if (userId) formData.append("user_id", userId);
+            if (candidateName) formData.append("candidate_name", candidateName);
 
             const res = await fetch(`/api/applications/job/${jobId}/upload`, {
               method: "POST",
@@ -159,7 +168,7 @@ export default function UploadResumeForm({
               Choose files
             </label>
             <span className="text-sm text-zinc-700">
-              {files.length > 0 ? `${files.length} file(s) selected` : "No files selected"}
+              {files.length > 0 ? `${files.length} file(s) selected.` : `No files selected ${!isHr && savedCvs.length > 0 ? "(or choose a saved CV above)" : "(Max 50 files allowed)"}.`}
             </span>
           </div>
           <input

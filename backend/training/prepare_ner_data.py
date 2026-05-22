@@ -6,7 +6,6 @@ from pathlib import Path
 import spacy
 
 def main():
-    # NOTE: Change this to the actual path of your downloaded CSV file
     csv_path = "resume_dataset.csv" 
 
     # Use a blank spaCy model just for its tokenization logic

@@ -219,11 +219,13 @@ function ScoringReportCard({ data }: { data: HighlightReport }) {
         <div className="flex flex-col items-center text-center">
           <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Skill Multiplier</span>
           <span className="mt-1 text-3xl font-extrabold text-emerald-600">{skillMultiplier}</span>
+          <span className="mt-2 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md">{data.matched_count} / {data.job_skill_count} matched</span>
         </div>
         <div className="text-2xl font-bold text-zinc-300">×</div>
         <div className="flex flex-col items-center text-center">
           <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Exp. Multiplier</span>
           <span className="mt-1 text-3xl font-extrabold text-purple-600">{expMultiplier}</span>
+          <span className="mt-2 text-[10px] font-medium text-purple-700 bg-purple-50 px-2 py-1 rounded-md">{((r as any).candidate_years ?? 0)} / {((r as any).required_years ?? 0)} years</span>
         </div>
         <div className="text-2xl font-bold text-zinc-300">=</div>
         <div className="flex flex-col items-center text-center rounded-xl bg-zinc-900 px-6 py-3 text-white shadow-lg">

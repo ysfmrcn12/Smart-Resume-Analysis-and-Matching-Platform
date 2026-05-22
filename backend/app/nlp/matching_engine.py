@@ -1,5 +1,6 @@
 """Matching engine for explainable job-resume relevance scoring."""
 import math
+import re
 from typing import Dict, List, Tuple
 import os
 from pathlib import Path
@@ -92,7 +93,7 @@ class MatchingEngine:
 
         Sentence Transformers typically output scores between 0.15 and 0.85.
         Scores below 0.25 usually indicate no semantic relationship.
-        We linearly scale the [0.25, 0.75] range to [0.0, 1.0].
+        We linearly scale the [0.25, 0.85] range to [0.0, 1.0] for a balanced scoring curve.
         """
         raw_similarity = max(0.0, min(1.0, raw_similarity))
         
@@ -100,7 +101,7 @@ class MatchingEngine:
         if raw_similarity <= baseline:
             return 0.0
             
-        calibrated = (raw_similarity - baseline) / 0.5
+        calibrated = (raw_similarity - baseline) / 0.60
         return max(0.0, min(1.0, calibrated))
 
     @staticmethod
@@ -118,7 +119,7 @@ class MatchingEngine:
             return float(util.cos_sim(emb1, emb2)[0][0])
         return self._compute_tfidf_similarity(job_processed, resume_processed)
 
-    def _compute_skill_metrics(self, job_text: str, resume_text: str) -> Dict:
+    def _compute_skill_metrics(self, job_text: str, resume_text: str, job_requirements: List[str] = None) -> Dict:
         """Extract skill overlap statistics and multiplier."""
         try:
             job_skills = {
@@ -129,6 +130,24 @@ class MatchingEngine:
                 self._normalize_skill_term(skill)
                 for skill in self.extractor.extract_skills(resume_text)
             }
+            
+            if job_requirements:
+                resume_text_lower = resume_text.lower()
+                for req in job_requirements:
+                    req_norm = self._normalize_skill_term(req)
+                    if not req_norm or len(req_norm.split()) > 4:
+                        continue
+                        
+                    # Add explicit short requirements directly to job skills
+                    job_skills.add(req_norm)
+                    
+                    # If this exact requirement is found in the resume, add it to resume skills
+                    pattern = rf"\b{re.escape(req_norm)}\b" if " " not in req_norm else re.escape(req_norm)
+                    for match in re.finditer(pattern, resume_text_lower):
+                        if not self.extractor._is_negated(resume_text_lower, match.start()):
+                            resume_skills.add(req_norm)
+                            break
+                            
             job_skills = {skill for skill in job_skills if skill}
             resume_skills = {skill for skill in resume_skills if skill}
         except Exception:
@@ -188,7 +207,7 @@ class MatchingEngine:
             "experience_multiplier": exp_multiplier,
         }
 
-    def explain_score(self, job_text: str, resume_text: str) -> Dict:
+    def explain_score(self, job_text: str, resume_text: str, job_requirements: List[str] = None) -> Dict:
         """
         Return a detailed scoring report for one job/resume pair.
 
@@ -249,7 +268,7 @@ class MatchingEngine:
         semantic_weight = 1.0
         base_score = semantic_calibrated
 
-        skill_metrics = self._compute_skill_metrics(job_text, resume_text)
+        skill_metrics = self._compute_skill_metrics(job_text, resume_text, job_requirements)
         exp_metrics = self._compute_experience_metrics(job_text, resume_text)
         pre_clamp_final = base_score * skill_metrics["skill_multiplier"] * exp_metrics["experience_multiplier"]
         final = self._clamp_float(pre_clamp_final)
@@ -279,7 +298,7 @@ class MatchingEngine:
             },
         }
 
-    def compute_similarity(self, job_text: str, resume_text: str) -> float:
+    def compute_similarity(self, job_text: str, resume_text: str, job_requirements: List[str] = None) -> float:
         """
         Compute cosine similarity between job description and resume.
 
@@ -290,13 +309,14 @@ class MatchingEngine:
         Returns:
             Similarity score between 0 and 1
         """
-        report = self.explain_score(job_text, resume_text)
+        report = self.explain_score(job_text, resume_text, job_requirements)
         return float(report.get("final_score", 0.0))
 
     def compute_similarity_batch(
         self,
         job_text: str,
-        resumes: List[Tuple[str, str]]  # List of (id, text)
+        resumes: List[Tuple[str, str]],  # List of (id, text)
+        job_requirements: List[str] = None
     ) -> List[Tuple[str, float]]:
         """
         Compute similarity scores for multiple resumes against one job efficiently.
@@ -345,7 +365,7 @@ class MatchingEngine:
                 else self._clamp_float(raw_semantic)
             )
             base_score = semantic_calibrated
-            skill_metrics = self._compute_skill_metrics(job_text, resume_text)
+            skill_metrics = self._compute_skill_metrics(job_text, resume_text, job_requirements)
             exp_metrics = self._compute_experience_metrics(job_text, resume_text)
             final_score = self._clamp_float(base_score * skill_metrics["skill_multiplier"] * exp_metrics["experience_multiplier"])
             scores.append((rid, final_score))
@@ -355,7 +375,8 @@ class MatchingEngine:
     def rank_candidates(
         self,
         job_text: str,
-        candidates: List[Dict]
+        candidates: List[Dict],
+        job_requirements: List[str] = None
     ) -> List[Dict]:
         """
         Rank candidates by compatibility score.
@@ -371,7 +392,7 @@ class MatchingEngine:
             return []
 
         resumes = [(c.get('id', i), c.get('resume_text', '')) for i, c in enumerate(candidates)]
-        scored = self.compute_similarity_batch(job_text, resumes)
+        scored = self.compute_similarity_batch(job_text, resumes, job_requirements)
 
         score_map = {str(rid): score for rid, score in scored}
         for c in candidates:

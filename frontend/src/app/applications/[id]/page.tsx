@@ -60,15 +60,18 @@ export default function ApplicationDetailsPage() {
           <Link href={`/jobs/${data.job_id}`} className="mb-4 inline-flex items-center text-sm font-semibold text-zinc-500 hover:text-zinc-800">
             ← Back to Job
           </Link>
-          <div className="flex items-center gap-4">
-            <h1 className="text-2xl font-bold text-zinc-900">
+          <p className="text-lg font-semibold text-blue-700">
+            {data.job_title}
+          </p>
+          <div className="mt-2 flex items-center gap-4">
+            <h1 className="text-3xl font-bold text-zinc-900">
               Candidate: {data.candidate_name}
             </h1>
             <a
               href={`/api/applications/${applicationId}/resume`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 shadow-sm transition-colors"
+              className="inline-flex items-center self-end rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 shadow-sm transition-colors"
             >
               <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -76,9 +79,6 @@ export default function ApplicationDetailsPage() {
               View Original PDF
             </a>
           </div>
-          <p className="mt-1 text-base font-medium text-zinc-700">
-            Applying for: <Link href={`/jobs/${data.job_id}`} className="text-blue-600 hover:underline">{data.job_title}</Link>
-          </p>
           <p className="mt-2 text-sm text-zinc-600">
             {data.matched_count} matching skills out of {data.job_skill_count} required
           </p>
@@ -250,11 +250,13 @@ function ScoreCalculationModal({ data, onClose }: { data: any; onClose: () => vo
             <div className="flex flex-col items-center text-center">
               <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Skill Multiplier</span>
               <span className="mt-1 text-4xl font-extrabold text-emerald-600">{skillMultiplier}</span>
+              <span className="mt-2 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md">{data.matched_count} / {data.job_skill_count} matched</span>
             </div>
             <div className="text-3xl font-bold text-zinc-300">×</div>
             <div className="flex flex-col items-center text-center">
               <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Exp. Multiplier</span>
               <span className="mt-1 text-4xl font-extrabold text-purple-600">{expMultiplier}</span>
+              <span className="mt-2 text-xs font-medium text-purple-700 bg-purple-50 px-2 py-1 rounded-md">{r.candidate_years} / {r.required_years} years</span>
             </div>
             <div className="text-3xl font-bold text-zinc-300">=</div>
             <div className="flex flex-col items-center text-center rounded-xl bg-zinc-900 px-8 py-4 text-white shadow-lg">
@@ -318,7 +320,7 @@ function ScoreCalculationModal({ data, onClose }: { data: any; onClose: () => vo
                 <ul className="mt-3 list-disc pl-5 text-sm text-zinc-700 space-y-1.5 marker:text-emerald-400">
                   <li>It extracts the required skills from the job and compares them to the resume.</li>
                   <li>If you have <strong>zero exact matches</strong>, your Base Score gets multiplied by <strong>0.75x</strong> (a 25% penalty).</li>
-                  <li>If you match all of them, your Base Score gets multiplied by up to <strong>1.15x</strong> (a 15% bonus).</li>
+                  <li>If you match all required skills, your score is multiplied by <strong>1.10x</strong>, plus a small bonus for each matched skill (up to a max of <strong>1.25x</strong>).</li>
                 </ul>
               </div>
             </div>

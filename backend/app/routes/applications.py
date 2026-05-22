@@ -133,14 +133,25 @@ def upload_resume(job_id):
         # NER extraction
         extracted = ner_extractor.extract_all(resume_text)
 
+        # Determine candidate name with a clear priority
+        persons = extracted.get('entities', {}).get('persons', [])
+        ner_name = persons[0] if persons else None
+        
+        # Priority: 1. Form input, 2. NER, 3. Email from resume, 4. Fallback
+        candidate_name = (
+            request.form.get('candidate_name') or 
+            ner_name or 
+            contact.get('email', 'Unknown')
+        )
+
         # Compute compatibility score
         job_text = _build_job_text(job)
-        score = matching_engine.compute_similarity(job_text, resume_text)
+        score = matching_engine.compute_similarity(job_text, resume_text, job.requirements)
 
         application = Application(
             job_posting_id=job_id,
-            candidate_name=request.form.get('candidate_name') or contact.get('email', 'Unknown'),
-            candidate_email=request.form.get('candidate_email') or contact.get('email', ''),
+            candidate_name=candidate_name,
+            candidate_email=contact.get('email', ''),
             resume_text=resume_text,
             resume_filename=filename,
             compatibility_score=score,
@@ -217,11 +228,24 @@ def batch_upload_resumes(job_id):
 
             # NER extraction
             extracted = ner_extractor.extract_all(resume_text)
-            score = matching_engine.compute_similarity(job_text, resume_text)
+            
+            # Determine candidate name with a clear priority for batch uploads
+            persons = extracted.get('entities', {}).get('persons', [])
+            ner_name = persons[0] if persons else None
+            
+            # Priority for batch: 1. NER, 2. Filename (cleaned), 3. Email, 4. Fallback
+            cleaned_filename = re.sub(r'[\d\s_.-]+', ' ', os.path.splitext(file.filename)[0]).strip().title()
+            
+            candidate_name = (
+                ner_name or
+                (cleaned_filename if len(cleaned_filename) > 3 else None) or
+                contact.get('email', 'Unknown')
+            )
+            score = matching_engine.compute_similarity(job_text, resume_text, job.requirements)
 
             application = Application(
                 job_posting_id=job_id,
-                candidate_name=contact.get('email', 'Unknown'), # Fallback to email for bulk uploads
+                candidate_name=candidate_name,
                 candidate_email=contact.get('email', ''),
                 resume_text=resume_text,
                 resume_filename=file.filename,
@@ -309,7 +333,7 @@ def get_highlights(app_id):
 
     job_text = _build_job_text(job)
     resume_text = application.resume_text or ""
-    score_report = matching_engine.explain_score(job_text, resume_text)
+    score_report = matching_engine.explain_score(job_text, resume_text, job.requirements)
 
     matched_skills = score_report.get("skills", {}).get("matched_skills", [])
     job_skills = score_report.get("skills", {}).get("job_skills", [])
@@ -337,9 +361,9 @@ def get_highlights(app_id):
         if valid_positions:
             matching_skill_positions[skill] = valid_positions
 
-    matching_keyword_positions = dict(matching_skill_positions)
+    matching_keyword_positions = {}
     for keyword in combined_overlap:
-        if keyword in matching_keyword_positions:
+        if keyword in matching_skill_positions:
             continue
         positions = _find_term_positions(resume_text, keyword)
         # Ensure we don't highlight lexical overlap if the word is part of a negated phrase
@@ -425,7 +449,8 @@ def rank_applicants(job_id):
     ]
     ranked = matching_engine.rank_candidates(
         _build_job_text(job),
-        candidates
+        candidates,
+        job.requirements
     )
 
     # Map back to full application data
