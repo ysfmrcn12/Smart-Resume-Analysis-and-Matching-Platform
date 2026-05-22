@@ -209,24 +209,37 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
           ) : null}
         </div>
 
-        {isApplicantView ? (
+        {isApplicantView || isHrView ? (
           <div className="mt-6 flex items-center justify-end">
-            <button
-              type="button"
-              onClick={() => {
-                setSuccessMessage(null);
-                setApplyOpen(true);
-              }}
-              className="rounded-lg bg-zinc-900 px-6 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
-            >
-              Apply for this job
-            </button>
+            {isHrView ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSuccessMessage(null);
+                  setApplyOpen(true);
+                }}
+                className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Upload Resumes
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setSuccessMessage(null);
+                  setApplyOpen(true);
+                }}
+                className="rounded-lg bg-green-600 px-6 py-2 text-sm font-semibold text-white hover:bg-green-700"
+              >
+                Apply for this job
+              </button>
+            )}
           </div>
         ) : null}
       </div>
 
       {/* Apply Modal */}
-      {isApplicantView && applyOpen && (
+      {(isApplicantView || isHrView) && applyOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white shadow-lg">
             <button
@@ -238,10 +251,11 @@ export default function JobDetailsPage({ jobId }: { jobId: number }) {
             <div className="p-6">
               <UploadResumeForm
                 jobId={jobId}
+                isHr={isHrView}
                 onUploaded={async () => {
                   await refreshApplicationsOnly();
                   setApplyOpen(false);
-                  setSuccessMessage("Your application has been submitted successfully!");
+                  setSuccessMessage(isHrView ? "Resumes have been uploaded successfully!" : "Your application has been submitted successfully!");
                   setTimeout(() => setSuccessMessage(null), 5000); // Auto-hide after 5 seconds
                 }}
               />

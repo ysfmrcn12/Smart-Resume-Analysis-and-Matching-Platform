@@ -40,7 +40,9 @@ TECH_PATTERNS = [
 
 NEGATION_WORDS = [
     ' no ', ' not ', ' lack ', ' lacking ', ' without ', 
-    ' bad at ', ' poor ', ' zero ', ' limited ', ' basic ', ' none '
+    ' bad at ', ' poor ', ' zero ', ' limited ', ' basic ', ' none ',
+    " don't ", " dont ", " do not ", " didn't ", " didnt ", " did not ",
+    " haven't ", " havent ", " have not "
 ]
 
 GENERIC_WORDS = {

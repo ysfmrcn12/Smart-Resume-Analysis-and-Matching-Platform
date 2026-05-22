@@ -174,6 +174,14 @@ def batch_upload_resumes(job_id):
     """
     job = JobPosting.query.get_or_404(job_id)
 
+    # Enforce that only HR users can use the batch upload endpoint
+    user_id = request.form.get('user_id')
+    if user_id:
+        from app.models import User
+        user = User.query.get(user_id)
+        if user and user.role != 'hr':
+            return jsonify({'error': 'Unauthorized: Only HR users can batch upload resumes.'}), 403
+
     # getlist() retrieves all files sent under the same form key
     files = request.files.getlist('resume') or request.files.getlist('file')
     if not files or all(f.filename == '' for f in files):
@@ -305,16 +313,32 @@ def get_highlights(app_id):
 
     matched_skills = score_report.get("skills", {}).get("matched_skills", [])
     job_skills = score_report.get("skills", {}).get("job_skills", [])
-    lexical_overlap = _extract_keyword_overlap(job_text, resume_text, max_terms=25)
+
+    # Focus lexical overlap on the Required Skills Checklist and Title rather than the whole description
+    checklist_text = ' '.join(job.requirements or [])
+    focus_text = f"{job.title} {checklist_text}".strip() or job_text
+    lexical_overlap = _extract_keyword_overlap(focus_text, resume_text, max_terms=25)
+
+    # Explicitly check for exact short phrases directly from the Required Skills Checklist
+    checklist_phrases = []
+    for req in (job.requirements or []):
+        req_clean = req.strip().lower()
+        # Grab phrases from the checklist that are 1-4 words long and exist in the resume
+        if 1 <= len(req_clean.split()) <= 4 and req_clean in resume_text.lower():
+            checklist_phrases.append(req_clean)
+            
+    combined_overlap = list(set(lexical_overlap + checklist_phrases))
 
     matching_skill_positions = {}
     for skill in matched_skills:
         positions = _find_term_positions(resume_text, skill)
-        if positions:
-            matching_skill_positions[skill] = positions
+        # Filter out positions that are part of a negated phrase
+        valid_positions = [pos for pos in positions if not ner_extractor._is_negated(resume_text, pos[0])]
+        if valid_positions:
+            matching_skill_positions[skill] = valid_positions
 
     matching_keyword_positions = dict(matching_skill_positions)
-    for keyword in lexical_overlap:
+    for keyword in combined_overlap:
         if keyword in matching_keyword_positions:
             continue
         positions = _find_term_positions(resume_text, keyword)
@@ -322,6 +346,10 @@ def get_highlights(app_id):
         valid_positions = [pos for pos in positions if not ner_extractor._is_negated(resume_text, pos[0])]
         if valid_positions:
             matching_keyword_positions[keyword] = valid_positions
+
+    # Strip out any words that were entirely negated before sending to the frontend
+    valid_matched_skills = [s for s in matched_skills if s in matching_skill_positions]
+    valid_lexical_keywords = [k for k in combined_overlap if k in matching_keyword_positions]
 
     sections = section_classifier.extract_sections(resume_text)
     scoring_breakdown = {
@@ -375,11 +403,11 @@ def get_highlights(app_id):
         'resume_text': resume_text,
         'matching_skills': matching_skill_positions,
         'matching_keywords': matching_keyword_positions,
-        'matched_count': len(matched_skills),
+        'matched_count': len(valid_matched_skills),
         'job_skill_count': int(score_report.get("skills", {}).get("job_skill_count", 0)),
-        'matched_skills': matched_skills,
+        'matched_skills': valid_matched_skills,
         'job_skills': job_skills,
-        'lexical_overlap_keywords': lexical_overlap,
+        'lexical_overlap_keywords': valid_lexical_keywords,
         'sections': sections,
         'scoring_report': scoring_breakdown,
     })

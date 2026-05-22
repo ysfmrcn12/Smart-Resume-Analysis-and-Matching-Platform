@@ -114,11 +114,19 @@ class NERExtractor:
         """Check if the text immediately preceding the term contains negation keywords."""
         # Look at the characters just before the skill
         preceding_text = text[max(0, start_pos - window):start_pos].lower()
-        # Pad with a space so we can match whole words easily
-        preceding_text = re.sub(r'\s+', ' ', preceding_text)
-        preceding_text = " " + preceding_text
 
-        return any(neg in preceding_text for neg in NEGATION_WORDS)
+        # Normalize curly apostrophes (often pasted from MS Word) to straight ones
+        preceding_text = preceding_text.replace("’", "'").replace("`", "'")
+
+        # Replace all non-alphanumeric characters (except spaces and apostrophes) with a space.
+        # This handles bullets, commas, etc., and normalizes word boundaries.
+        cleaned_preceding = re.sub(r"[^a-z0-9\s']", ' ', preceding_text)
+
+        # Normalize whitespace and pad to ensure whole-word matching.
+        normalized_preceding = re.sub(r'\s+', ' ', cleaned_preceding).strip()
+        padded_text = f" {normalized_preceding} "
+
+        return any(neg_word in padded_text for neg_word in NEGATION_WORDS)
 
     def extract_skills(self, text: str) -> List[str]:
         """
@@ -138,11 +146,6 @@ class NERExtractor:
                 if not self._is_negated(full_text, match.start()):
                     skills.add(match.group(0))
 
-        # Add ORG entities (companies often indicate domain skills)
-        entities = self.extract_entities(text)
-        # Company names can help domain-match, but normalize to lowercase for intersections.
-        skills.update(s.strip().lower() for s in entities['organizations'][:5])  # Limit
-        
         # CRITICAL: Use the Custom NER model we trained to find skills in the whole text!
         doc_full = self.nlp(text[:100000])
         
