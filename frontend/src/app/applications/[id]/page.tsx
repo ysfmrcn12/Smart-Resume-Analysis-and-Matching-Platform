@@ -295,7 +295,7 @@ function ScoreCalculationModal({ data, onClose }: { data: any; onClose: () => vo
                 1
               </div>
               <div>
-                <h3 className="text-lg font-bold text-blue-900">The AI Base Score (The "New" TF-IDF)</h3>
+                <h3 className="text-lg font-bold text-blue-900">Base Score (Semantic Similarity)</h3>
                 <p className="mt-2 text-sm text-zinc-700 leading-relaxed">
                   Instead of just counting word frequencies, the AI reads the entire job description and the entire resume to understand their overall meaning.
                 </p>
@@ -311,7 +311,7 @@ function ScoreCalculationModal({ data, onClose }: { data: any; onClose: () => vo
                 2
               </div>
               <div>
-                <h3 className="text-lg font-bold text-emerald-900">The Skill Multiplier (The Keyword Check)</h3>
+                <h3 className="text-lg font-bold text-emerald-900">Skill Multiplier (The Keyword Check)</h3>
                 <p className="mt-2 text-sm text-zinc-700 leading-relaxed">
                   Because the AI sometimes gets a little too creative with context, the system still demands hard keyword matches (which is the part of TF-IDF we wanted to keep!).
                 </p>
@@ -328,7 +328,7 @@ function ScoreCalculationModal({ data, onClose }: { data: any; onClose: () => vo
                 3
               </div>
               <div>
-                <h3 className="text-lg font-bold text-purple-900">The Experience Multiplier (The Seniority Check)</h3>
+                <h3 className="text-lg font-bold text-purple-900">Experience Multiplier</h3>
                 <p className="mt-2 text-sm text-zinc-700 leading-relaxed">
                   Finally, it checks the years of experience.
                 </p>
